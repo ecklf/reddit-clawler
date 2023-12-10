@@ -1,0 +1,27 @@
+[
+  {
+    "kind": "Listing",
+    "data": {
+      "after": null,
+      "dist": 24,
+      "modhash": "",
+      "geo_filter": "",
+      "children": [
+        {
+          "kind": "t3",
+          "data": {
+            "subreddit": "MOCK_SUBREDDIT",
+            "title": "MOCK_TITLE",
+            "is_reddit_media_domain": false,
+            "media_only": false,
+            "id": "MOCK_ID",
+            "author": "MOCK_AUTHOR",
+            "url": "https://i.redgifs.com/i/mock.jpg",
+            "created_utc": 1702153586.0,
+            "ups": 1538
+          }
+        }
+      ]
+    }
+  }
+]

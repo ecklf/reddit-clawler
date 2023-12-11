@@ -29,11 +29,13 @@ jobs:
 
       - name: Set short sha
         id: set-short-sha
-        run: echo "SHA=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        run: echo "SHA=$(git rev-parse --short ${GITHUB_SHA})" >> $GITHUB_OUTPUT
+        shell: bash # fix for windows-latest
 
-      - name: Extract package version
+      - name: Set package version
         id: set-package-version
         run: echo "PKG_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')" >> $GITHUB_OUTPUT
+        shell: bash # fix for windows-latest
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2

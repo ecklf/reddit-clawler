@@ -2,10 +2,11 @@ use clap::{builder::EnumValueParser, Arg, ArgAction, Command, ValueEnum};
 
 #[derive(Debug)]
 pub struct CliSharedOptions {
-    pub output: String,
-    pub verbose: bool,
-    pub skip: bool,
     pub concurrency: u16,
+    pub mock: Option<String>,
+    pub output: String,
+    pub skip: bool,
+    pub verbose: bool,
 }
 
 #[derive(Debug)]
@@ -57,6 +58,13 @@ pub fn run() -> CliCommand {
             .long("skip")
             .long_help("Skips download tasks for development purposes")
             .action(clap::ArgAction::SetTrue)
+            .required(false)
+            .hide(true),
+        Arg::new("mock")
+            .long("mock")
+            .long_help("Pass a mock of a Reddit API response for development purposes")
+            .action(clap::ArgAction::Set)
+            .required(false)
             .hide(true),
         Arg::new("tasks")
             .short('t')
@@ -111,16 +119,18 @@ pub fn run() -> CliCommand {
     let matches = cmd.get_matches();
 
     let get_shared_options = |m: &clap::ArgMatches| {
-        let verbose = m.get_one::<bool>("verbose").unwrap().to_owned();
-        let skip = m.get_one::<bool>("skip").unwrap().to_owned();
         let concurrency = m.get_one::<u16>("tasks").unwrap().to_owned();
+        let mock = m.get_one::<String>("mock").cloned();
         let output = m.get_one::<String>("output").unwrap().to_owned();
+        let skip = m.get_one::<bool>("skip").unwrap().to_owned();
+        let verbose = m.get_one::<bool>("verbose").unwrap().to_owned();
 
         CliSharedOptions {
-            verbose,
-            skip,
             concurrency,
+            mock,
             output,
+            skip,
+            verbose,
         }
     };
 

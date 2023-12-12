@@ -1,4 +1,7 @@
-use reddit_clawler::{cli, utils::state::SharedState};
+use reddit_clawler::{
+    cli,
+    utils::{self, state::SharedState},
+};
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use std::{error::Error, sync::Arc};
@@ -7,7 +10,7 @@ use tokio::sync::Mutex;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Checks for dependencies that will be used in future versions
-    // utils::check_deps()?;
+    utils::check_deps()?;
     // Checks for file_scheme that will be used in future version
     // let file_scheme = String::from("{UPVOTES}__ID}_{AUTHOR}_{POSTID}_{DATE}");
     // check_file_scheme(&file_scheme);

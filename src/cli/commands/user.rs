@@ -1,6 +1,6 @@
 use crate::{
     cli::CliUserCommand,
-    clients::{self},
+    clients::{self, api_types::reddit::submitted_response::RedditSubmittedResponse},
     reddit_parser::RedditPostParser,
     utils::{
         self,
@@ -10,7 +10,7 @@ use crate::{
 };
 use owo_colors::OwoColorize;
 use spinoff::{spinners, Color, Spinner};
-use std::{error::Error, sync::Arc};
+use std::{error::Error, fs, sync::Arc};
 use tokio::sync::{Mutex, Semaphore};
 
 pub async fn handle_user_command(
@@ -34,9 +34,26 @@ pub async fn handle_user_command(
     );
     let output_folder = utils::get_output_folder(&options.output, &username);
     utils::prepare_output_folder(&output_folder)?;
-    let responses = reddit_client
-        .get_user_submissions(client, &username)
-        .await?;
+
+    let responses = match options.mock {
+        Some(mock_file) => {
+            println!(
+                "{}",
+                format_args!("{} {}", "[FLAG]".red().bold(), "Mock mode enabled".bold()),
+            );
+
+            let file = fs::read_to_string(mock_file)
+                .map_err(|e| format!("Failed to read mock file: {}", e))?;
+
+            serde_json::from_str::<Vec<RedditSubmittedResponse>>(&file)
+                .expect("Failed to parse mock file")
+        }
+        _ => {
+            reddit_client
+                .get_user_submissions(client, &username)
+                .await?
+        }
+    };
 
     let posts = responses
         .iter()

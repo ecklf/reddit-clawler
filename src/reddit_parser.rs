@@ -55,6 +55,7 @@ impl RedditPostParser {
             subreddit,
             title,
             ups: upvotes,
+            is_video,
             ..
         } = data;
 
@@ -63,22 +64,26 @@ impl RedditPostParser {
         match is_reddit_media_domain {
             // Handle Reddit posts with single images or videos
             true => {
-                match data.is_video {
+                match is_video {
                     Some(true) => {
-                        return vec![
-                            (RedditCrawlerPost {
-                                author: author.to_owned(),
-                                created_utc: created_utc.to_owned(),
-                                extension: "mp4".to_owned(),
-                                id: data.id.to_owned(),
-                                index: None,
-                                provider: RedditMediaProviderType::RedditVideo,
-                                subreddit: subreddit.to_owned(),
-                                title: title.to_owned(),
-                                upvotes: upvotes.to_owned(),
-                                url: data.url.to_owned(),
-                            }),
-                        ];
+                        if let Some(m) = media {
+                            if let Some(u) = &m.reddit_video {
+                                return vec![
+                                    (RedditCrawlerPost {
+                                        author: author.to_owned(),
+                                        created_utc: created_utc.to_owned(),
+                                        extension: "mp4".to_owned(),
+                                        id: data.id.to_owned(),
+                                        index: None,
+                                        provider: RedditMediaProviderType::RedditVideo,
+                                        subreddit: subreddit.to_owned(),
+                                        title: title.to_owned(),
+                                        upvotes: upvotes.to_owned(),
+                                        url: u.hls_url.to_owned(),
+                                    }),
+                                ];
+                            }
+                        }
                     }
                     Some(false) => {
                         return vec![

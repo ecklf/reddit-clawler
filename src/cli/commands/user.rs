@@ -1,17 +1,21 @@
 use crate::{
     cli::CliUserCommand,
-    clients::{self},
+    clients::{self, api_types::reddit::submitted_response::RedditSubmittedResponse},
     reddit_parser::RedditPostParser,
     utils::{
-        self,
+        self, download_crawler_post,
         state::{DownloadStats, SharedState},
-        write_crawler_post, DownloadProgress,
+        DownloadProgress,
     },
 };
+use anyhow::anyhow;
 use owo_colors::OwoColorize;
 use spinoff::{spinners, Color, Spinner};
-use std::{error::Error, sync::Arc};
-use tokio::sync::{Mutex, Semaphore};
+use std::{error::Error, fs, sync::Arc, time::Duration};
+use tokio::{
+    sync::{oneshot, Mutex, Semaphore},
+    time::sleep,
+};
 
 pub async fn handle_user_command(
     cmd: CliUserCommand,
@@ -20,6 +24,7 @@ pub async fn handle_user_command(
 ) -> Result<(), Box<dyn Error>> {
     let CliUserCommand { username, options } = cmd;
 
+    let (tx, mut rx) = oneshot::channel::<bool>();
     let reddit_client = clients::RedditClient::default();
     let reddit_parser = RedditPostParser::default();
 
@@ -34,9 +39,26 @@ pub async fn handle_user_command(
     );
     let output_folder = utils::get_output_folder(&options.output, &username);
     utils::prepare_output_folder(&output_folder)?;
-    let responses = reddit_client
-        .get_user_submissions(client, &username)
-        .await?;
+
+    let responses = match options.mock {
+        Some(mock_file) => {
+            println!(
+                "{}",
+                format_args!("{} {}", "[FLAG]".red().bold(), "Mock mode enabled".bold()),
+            );
+
+            let file = fs::read_to_string(mock_file)
+                .map_err(|e| format!("Failed to read mock file: {}", e))?;
+
+            serde_json::from_str::<Vec<RedditSubmittedResponse>>(&file)
+                .expect("Failed to parse mock file")
+        }
+        _ => {
+            reddit_client
+                .get_user_submissions(client, &username)
+                .await?
+        }
+    };
 
     let posts = responses
         .iter()
@@ -60,6 +82,18 @@ pub async fn handle_user_command(
         return Ok(());
     }
 
+    let clockwork_dp = Arc::clone(&download_progress);
+    // Updates the progress bar so it runs smoothly
+    let clockwork_orange = tokio::spawn(async move {
+        loop {
+            if rx.try_recv().is_ok() {
+                break;
+            }
+            clockwork_dp.lock().await.control.tick();
+            sleep(Duration::from_millis(100)).await;
+        }
+    });
+
     for post in posts {
         let client = client.clone();
         let output_folder = output_folder.clone();
@@ -70,7 +104,7 @@ pub async fn handle_user_command(
         let permit = Arc::clone(&semaphore).acquire_owned().await.unwrap();
 
         tokio::spawn(async move {
-            match write_crawler_post(&client, &ss_clone, &output_folder, &post).await {
+            match download_crawler_post(&client, &ss_clone, &output_folder, &post).await {
                 Ok(bytes) => {
                     if let Some(bytes) = bytes {
                         let mut dl_stats = ds_clone.lock().await;
@@ -92,11 +126,16 @@ pub async fn handle_user_command(
         .await?;
     }
 
+    tx.send(true)
+        .map_err(|_| anyhow!("Failed sending to oneshot channel"))?;
     let dl_stats = download_stats.lock().await;
     download_progress.lock().await.post_report(
         dl_stats.files_downloaded,
         total_post_len,
         dl_stats.bytes_downloaded,
     );
+
+    clockwork_orange.await?;
+
     Ok(())
 }

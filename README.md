@@ -26,16 +26,18 @@ Download posts from `/r/redpandas` from the `top` tab filtered by `hour`:
 
 Currently supports these providers (these are the most common I found):
 
-- [x] Reddit (Images, Videos, Gallery)
-- [x] Imgur
-- [x] Redgifs
+- [x] Reddit Images
+- [x] Reddit Videos
+- [x] Reddit Galleries
+- [x] YouTube Videos
+- [x] Redgifs Videos
 
 ## Planned
 
-- [ ] YouTube download
-- [ ] Filename scheme
+- [ ] Imgur Images
+- [ ] Providing custom filename scheme
 - [ ] Local caching
-- [ ] Auto conversion to small formats (avif/webp)
+- [ ] Configuration for conversion to other/small formats (avif/webp)
 - [ ] Remove duplicated
 
 ## Development
@@ -43,7 +45,13 @@ Currently supports these providers (these are the most common I found):
 You can use the `--skip` flag to skip the download process:
 
 ```sh
-./reddit_clawler user spez --skip
+cargo run -- user spez --skip
+```
+
+You can use the `--mock` flag to provide a mock file for the responses of the Reddit client:
+
+```sh
+cargo run -- user spez --mock ./tests/mocks/reddit/submitted_response/reddit_video.json
 ```
 
 ## License

@@ -269,6 +269,8 @@ pub struct Media {
     #[serde(rename = "type")]
     pub type_field: Option<String>,
     pub oembed: Option<Oembed>,
+    #[serde(rename = "reddit_video")]
+    pub reddit_video: Option<RedditVideo>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

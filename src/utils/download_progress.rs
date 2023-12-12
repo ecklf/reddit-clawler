@@ -11,9 +11,7 @@ impl DownloadProgress {
         let stats = ProgressBar::new(len);
         stats.set_style(
             ProgressStyle::with_template(
-                // "[{elapsed_precise}] [{wide_bar:.cyan/blue}] {msg} ({eta})",
-                // "[{elapsed_precise}] — [{bar:40.cyan/white}] — {msg} ({eta})",
-                "[{elapsed_precise}] — [{wide_bar:.202}] — {msg} ({eta})",
+                "[{spinner:.202}] — [{elapsed_precise}] — [{wide_bar:.202}] — {msg} ({eta})",
             )
             .unwrap()
             .with_key(
@@ -22,9 +20,8 @@ impl DownloadProgress {
                     write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
                 },
             )
+            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
             .progress_chars("█▉▊▋▌▍▎▏  "),
-            // .progress_chars("#>-"),
-            // .progress_chars("█▇▆▅▄▃▂▁ "),
         );
 
         DownloadProgress {

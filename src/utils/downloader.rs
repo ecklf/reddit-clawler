@@ -45,7 +45,7 @@ pub async fn set_file_timestamp(
     Ok(())
 }
 
-pub async fn write_crawler_post(
+pub async fn download_crawler_post(
     client: &reqwest_middleware::ClientWithMiddleware,
     shared_state: &Arc<Mutex<SharedState>>,
     folder_path: &str,
@@ -83,9 +83,6 @@ pub async fn write_crawler_post(
         file_name = file_name,
         extension = extension
     );
-
-    // let file_name = NON_ALPHANUMERIC_RE.replace_all(title, "_");
-    // let file_name = MULTIPLE_UNDERSCORE_RE.replace_all(&file_name, "_");
 
     let response = match provider {
         RedditMediaProviderType::RedditImage | RedditMediaProviderType::RedditGalleryImage => {

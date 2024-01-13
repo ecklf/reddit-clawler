@@ -20,6 +20,6 @@ pub fn check_deps() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let missing_deps = collect.join(", ");
-    println!("Missing dependencies: {}", missing_deps);
+    println!("Missing CLI dependencies: {}", missing_deps);
     std::process::exit(0)
 }

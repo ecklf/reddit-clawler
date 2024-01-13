@@ -31,12 +31,12 @@ Currently supports these providers (these are the most common I found):
 - [x] Reddit Galleries
 - [x] YouTube Videos
 - [x] Redgifs Videos
+- [x] Local caching
 
 ## Planned
 
 - [ ] Imgur Images
 - [ ] Providing custom filename scheme
-- [ ] Local caching
 - [ ] Configuration for conversion to other/small formats (avif/webp)
 - [ ] Remove duplicated
 

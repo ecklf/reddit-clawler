@@ -1,10 +1,10 @@
 use owo_colors::OwoColorize;
 use std::process::Command;
 
-const DEPENDENCIES: [(&str, &str, &str); 3] = [
+const DEPENDENCIES: [(&str, &str, &str); 1] = [
     ("yt-dlp", "yt-dlp", "--version"),
-    ("avifenc", "avifenc", "--version"),
-    ("ffmpeg", "ffmpeg", "-version"),
+    // ("avifenc", "avifenc", "--version"),
+    // ("ffmpeg", "ffmpeg", "-version"),
 ];
 
 pub fn check_deps() -> Result<(), Box<dyn std::error::Error>> {

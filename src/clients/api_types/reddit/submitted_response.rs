@@ -146,7 +146,7 @@ pub struct Oembed {
     #[serde(rename = "type")]
     pub type_field: Option<String>,
     #[serde(rename = "thumbnail_width")]
-    pub thumbnail_width: i64,
+    pub thumbnail_width: Option<i64>,
     pub height: i64,
     pub width: i64,
     pub html: String,
@@ -155,9 +155,9 @@ pub struct Oembed {
     #[serde(rename = "provider_name")]
     pub provider_name: String,
     #[serde(rename = "thumbnail_url")]
-    pub thumbnail_url: String,
+    pub thumbnail_url: Option<String>,
     #[serde(rename = "thumbnail_height")]
-    pub thumbnail_height: i64,
+    pub thumbnail_height: Option<i64>,
     #[serde(rename = "author_url")]
     pub author_url: Option<String>,
 }

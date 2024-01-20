@@ -28,6 +28,7 @@ pub fn get_output_folder(path: &str, username: &str) -> String {
 enum ProviderHandlerReturned {
     HttpResponse(Response),
     ThirdPartyResponse(String),
+    NotFound,
     Unhandled,
 }
 
@@ -45,12 +46,19 @@ pub async fn set_file_timestamp(
     Ok(())
 }
 
+pub enum DownloadPostResult {
+    ReceivedBytes(f64),
+    ReceivedFailed,
+    ReceivedNotFound,
+    ReceivedUnhandled,
+}
+
 pub async fn download_crawler_post(
     client: &reqwest_middleware::ClientWithMiddleware,
     shared_state: &Arc<Mutex<SharedState>>,
     folder_path: &str,
     media: &RedditCrawlerPost,
-) -> Result<Option<f64>, anyhow::Error> {
+) -> Result<DownloadPostResult, anyhow::Error> {
     let RedditCrawlerPost {
         author,
         created_utc,
@@ -85,7 +93,9 @@ pub async fn download_crawler_post(
     );
 
     let response = match provider {
-        RedditMediaProviderType::RedditImage | RedditMediaProviderType::RedditGalleryImage => {
+        RedditMediaProviderType::RedditImage
+        | RedditMediaProviderType::RedditGalleryImage
+        | RedditMediaProviderType::RedditGifVideo => {
             ProviderHandlerReturned::HttpResponse(client.get(url).send().await?)
         }
         RedditMediaProviderType::RedditVideo => {
@@ -124,8 +134,22 @@ pub async fn download_crawler_post(
             ProviderHandlerReturned::ThirdPartyResponse(file_path.clone())
         }
         RedditMediaProviderType::ImgurImage => {
-            println!("Not handling imgur download for: {}", &title);
-            ProviderHandlerReturned::Unhandled
+            let response = client.get(url).send().await?;
+            let content_type = response.headers().get("content-type");
+            match content_type {
+                Some(value) => match value.to_str() {
+                    Ok(s) => {
+                        // Imgur returns "text/html" when the post has been deleted
+                        if s == "text/html" {
+                            ProviderHandlerReturned::NotFound
+                        } else {
+                            ProviderHandlerReturned::HttpResponse(response)
+                        }
+                    }
+                    Err(_) => ProviderHandlerReturned::HttpResponse(response),
+                },
+                _ => ProviderHandlerReturned::HttpResponse(response),
+            }
         }
         RedditMediaProviderType::None => {
             println!("Skipping unsupported provider: {}", &title);
@@ -133,7 +157,7 @@ pub async fn download_crawler_post(
         }
     };
 
-    let bytes_processed: Result<Option<f64>, anyhow::Error> = match response {
+    match response {
         ProviderHandlerReturned::HttpResponse(response) => {
             let bytes = response.bytes().await?;
 
@@ -141,15 +165,14 @@ pub async fn download_crawler_post(
             out.write_all(&bytes)?;
             set_file_timestamp(out, *created_utc).await?;
 
-            Ok(Some(bytes.len() as f64))
+            Ok(DownloadPostResult::ReceivedBytes(bytes.len() as f64))
         }
         ProviderHandlerReturned::ThirdPartyResponse(fp) => {
             let bytes = fs::metadata(fp)?.len() as f64;
             set_file_timestamp(File::open(&file_path)?, *created_utc).await?;
-            Ok(Some(bytes))
+            Ok(DownloadPostResult::ReceivedBytes(bytes))
         }
-        ProviderHandlerReturned::Unhandled => Ok(None),
-    };
-
-    bytes_processed
+        ProviderHandlerReturned::NotFound => Ok(DownloadPostResult::ReceivedNotFound),
+        ProviderHandlerReturned::Unhandled => Ok(DownloadPostResult::ReceivedUnhandled),
+    }
 }

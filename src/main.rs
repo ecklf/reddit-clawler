@@ -24,9 +24,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     // Shared state between tokio tasks e.g. caching an authorization token
-    let shared_state: Arc<Mutex<SharedState>> = Arc::new(Mutex::new(SharedState {
-        redgifs_token: None,
-    }));
+    let shared_state: Arc<Mutex<SharedState>> = Arc::new(Mutex::new(SharedState::default()));
 
     match cli_request {
         cli::CliCommand::User(cmd) => {

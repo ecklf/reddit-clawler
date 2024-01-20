@@ -4,6 +4,7 @@ use crate::{
 };
 use reqwest::header::HeaderMap;
 use thiserror::Error;
+const MAX_SUBMISSIONS_PER_REQUEST: u32 = 100;
 
 #[derive(Error, Debug)]
 pub enum RedditParserError {
@@ -35,12 +36,12 @@ impl RedditClient {
     fn gen_user_submitted_url(&self, user: &str, after: Option<&str>) -> String {
         match after {
             Some(after) => format!(
-                "https://www.reddit.com/user/{}/submitted.json?limit=100&sort=new&after={}&raw_json=1",
-                user, after
+                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort=new&after={}&raw_json=1",
+                user, MAX_SUBMISSIONS_PER_REQUEST, after
             ),
             None => format!(
-                "https://www.reddit.com/user/{}/submitted.json?limit=100&sort=new&raw_json=1",
-                user
+                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort=new&raw_json=1",
+                user, MAX_SUBMISSIONS_PER_REQUEST
             ),
         }
     }

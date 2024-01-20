@@ -130,40 +130,53 @@ pub async fn handle_user_command(
 
         tokio::spawn(async move {
             match download_crawler_post(&client, &ss_clone, &output_folder, &post).await {
-                Ok(bytes) => {
-                    if let Some(bytes) = bytes {
-                        let mut dl_stats = ds_clone.lock().await;
-                        dl_stats.files_downloaded += 1;
-                        dl_stats.bytes_downloaded += bytes;
+                Ok(result) => {
+                    match result {
+                        utils::DownloadPostResult::ReceivedBytes(bytes) => {
+                            let mut dl_stats = ds_clone.lock().await;
+                            dl_stats.files_downloaded += 1;
+                            dl_stats.bytes_downloaded += bytes;
 
-                        ss_clone.lock().await.file_cache.files.push(FileCacheItem {
-                            id: post.id.clone(),
-                            created_utc: post.created_utc,
-                            title: post.title.clone(),
-                            subreddit: post.subreddit.clone(),
-                            url: post.url.clone(),
-                            success: true,
-                            index: post.index,
-                        });
+                            ss_clone.lock().await.file_cache.files.push(FileCacheItem {
+                                id: post.id.clone(),
+                                created_utc: post.created_utc,
+                                title: post.title.clone(),
+                                subreddit: post.subreddit.clone(),
+                                url: post.url.clone(),
+                                success: true,
+                                index: post.index,
+                            });
 
-                        dp_clone.lock().await.update_progress(
-                            dl_stats.files_downloaded,
-                            total_post_len,
-                            dl_stats.bytes_downloaded,
-                        );
+                            dp_clone.lock().await.update_progress(
+                                dl_stats.files_downloaded,
+                                total_post_len,
+                                dl_stats.bytes_downloaded,
+                            );
+                        }
+                        utils::DownloadPostResult::ReceivedNotFound => {
+                            ss_clone.lock().await.file_cache.files.push(FileCacheItem {
+                                id: post.id.clone(),
+                                created_utc: post.created_utc,
+                                title: post.title.clone(),
+                                subreddit: post.subreddit.clone(),
+                                url: post.url.clone(),
+                                success: false,
+                                index: post.index,
+                            });
+                            let mut dl_stats = ds_clone.lock().await;
+                            dl_stats.downloads_failed += 1;
+                        }
+                        utils::DownloadPostResult::ReceivedFailed => {
+                            let mut dl_stats = ds_clone.lock().await;
+                            dl_stats.downloads_failed += 1;
+                        }
+
+                        utils::DownloadPostResult::ReceivedUnhandled => {
+                            // Do nothing
+                        }
                     }
                 }
-
                 Err(_) => {
-                    ss_clone.lock().await.file_cache.files.push(FileCacheItem {
-                        id: post.id.clone(),
-                        created_utc: post.created_utc,
-                        title: post.title.clone(),
-                        subreddit: post.subreddit.clone(),
-                        url: post.url.clone(),
-                        success: false,
-                        index: post.index,
-                    });
                     let mut dl_stats = ds_clone.lock().await;
                     dl_stats.downloads_failed += 1;
                 }

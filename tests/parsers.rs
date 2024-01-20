@@ -11,7 +11,7 @@ fn it_detects_reddit_image() -> Result<(), Box<dyn Error>> {
     let data = fs::read_to_string("./tests/mocks/reddit/submitted_response/reddit_image.json")?;
     let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
     let res = responses
-        .get(0)
+        .first()
         .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
 
     let post_parser = RedditPostParser::default();
@@ -32,7 +32,7 @@ fn it_detects_reddit_gallery() -> Result<(), Box<dyn Error>> {
     let data = fs::read_to_string("./tests/mocks/reddit/submitted_response/reddit_gallery.json")?;
     let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
     let res = responses
-        .get(0)
+        .first()
         .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
 
     let post_parser = RedditPostParser::default();
@@ -53,7 +53,7 @@ fn it_detects_reddit_video() -> Result<(), Box<dyn Error>> {
     let data = fs::read_to_string("./tests/mocks/reddit/submitted_response/reddit_video.json")?;
     let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
     let res = responses
-        .get(0)
+        .first()
         .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
 
     let post_parser = RedditPostParser::default();
@@ -74,7 +74,7 @@ fn it_detects_imgur_image() -> Result<(), Box<dyn Error>> {
     let data = fs::read_to_string("./tests/mocks/reddit/submitted_response/imgur_image.json")?;
     let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
     let res = responses
-        .get(0)
+        .first()
         .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
 
     let post_parser = RedditPostParser::default();
@@ -95,7 +95,7 @@ fn it_detects_youtube_video() -> Result<(), Box<dyn Error>> {
     let data = fs::read_to_string("./tests/mocks/reddit/submitted_response/youtube_video.json")?;
     let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
     let res = responses
-        .get(0)
+        .first()
         .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
 
     let post_parser = RedditPostParser::default();
@@ -116,7 +116,7 @@ fn it_detects_redgifs_image() -> Result<(), Box<dyn Error>> {
     let data = fs::read_to_string("./tests/mocks/reddit/submitted_response/redgifs_image.json")?;
     let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
     let res = responses
-        .get(0)
+        .first()
         .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
 
     let post_parser = RedditPostParser::default();
@@ -137,7 +137,7 @@ fn it_detects_redgifs_video() -> Result<(), Box<dyn Error>> {
     let data = fs::read_to_string("./tests/mocks/reddit/submitted_response/redgifs_video.json")?;
     let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
     let res = responses
-        .get(0)
+        .first()
         .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
 
     let post_parser = RedditPostParser::default();

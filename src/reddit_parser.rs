@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum RedditMediaProviderType {
     RedditImage,
+    RedditGifVideo,
     RedditVideo,
     RedditGalleryImage,
     ImgurImage,
@@ -86,11 +87,89 @@ impl RedditPostParser {
                         }
                     }
                     Some(false) => {
+                        let videos =
+                            data.preview.as_ref().map(|preview| {
+                                preview
+                                    .images
+                                    .iter()
+                                    .filter_map(|image| {
+                                        image.variants.mp4.as_ref().map(|mp4_src| {
+                                            RedditCrawlerPost {
+                                                author: author.to_owned(),
+                                                created_utc: created_utc.to_owned(),
+                                                extension: "mp4".to_owned(),
+                                                id: data.id.to_owned(),
+                                                index: None,
+                                                provider: RedditMediaProviderType::RedditImage,
+                                                subreddit: subreddit.to_owned(),
+                                                title: title.to_owned(),
+                                                upvotes: upvotes.to_owned(),
+                                                url: mp4_src.source.url.to_owned(),
+                                            }
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                            });
+
+                        if let Some(videos) = videos {
+                            if !videos.is_empty() {
+                                return videos;
+                            }
+                        }
+
+                        let gifs =
+                            data.preview.as_ref().map(|preview| {
+                                preview
+                                    .images
+                                    .iter()
+                                    .filter_map(|image| {
+                                        image.variants.gif.as_ref().map(|gif_src| {
+                                            RedditCrawlerPost {
+                                                author: author.to_owned(),
+                                                created_utc: created_utc.to_owned(),
+                                                extension: "gif".to_owned(),
+                                                id: data.id.to_owned(),
+                                                index: None,
+                                                provider: RedditMediaProviderType::RedditGifVideo,
+                                                subreddit: subreddit.to_owned(),
+                                                title: title.to_owned(),
+                                                upvotes: upvotes.to_owned(),
+                                                url: gif_src.source.url.to_owned(),
+                                            }
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                            });
+
+                        if let Some(gifs) = gifs {
+                            if !gifs.is_empty() {
+                                return gifs;
+                            }
+                        }
+
+                        let extension: String = data.url.split('.').rev().take(1).collect();
+
+                        if extension == "gif" {
+                            return vec![
+                                (RedditCrawlerPost {
+                                    author: author.to_owned(),
+                                    created_utc: created_utc.to_owned(),
+                                    extension: "gif".to_owned(),
+                                    id: data.id.to_owned(),
+                                    index: None,
+                                    provider: RedditMediaProviderType::RedditImage,
+                                    subreddit: subreddit.to_owned(),
+                                    title: title.to_owned(),
+                                    upvotes: upvotes.to_owned(),
+                                    url: data.url.to_owned(),
+                                }),
+                            ];
+                        }
+
                         return vec![
                             (RedditCrawlerPost {
                                 author: author.to_owned(),
                                 created_utc: created_utc.to_owned(),
-                                // TODO improve file extension
                                 extension: "webp".to_owned(),
                                 id: data.id.to_owned(),
                                 index: None,
@@ -123,22 +202,60 @@ impl RedditPostParser {
                             .enumerate()
                             .filter_map(|(i, media_id)| {
                                 media_metadata.get(media_id).and_then(|media| {
-                                    media.s.as_ref().map(|s_media| RedditCrawlerPost {
-                                        author: author.to_owned(),
-                                        created_utc: created_utc.to_owned(),
-                                        extension: "webp".to_owned(),
-                                        id: data.id.to_owned(),
-                                        index: Some(i),
-                                        provider: RedditMediaProviderType::RedditGalleryImage,
-                                        subreddit: subreddit.to_owned(),
-                                        title: format!("{}-{}", title, i),
-                                        upvotes: upvotes.to_owned(),
-                                        url: s_media.u.to_owned(),
+                                    media.s.as_ref().and_then(|s_media| {
+                                        if let Some(u) = &s_media.u {
+                                            return Some(RedditCrawlerPost {
+                                                author: author.to_owned(),
+                                                created_utc: created_utc.to_owned(),
+                                                extension: "webp".to_owned(),
+                                                id: data.id.to_owned(),
+                                                index: Some(i),
+                                                provider:
+                                                    RedditMediaProviderType::RedditGalleryImage,
+                                                subreddit: subreddit.to_owned(),
+                                                title: format!("{}-{}", title, i),
+                                                upvotes: upvotes.to_owned(),
+                                                url: u.to_owned(),
+                                            });
+                                        }
+
+                                        None
                                     })
                                 })
                             })
                             .collect::<Vec<_>>();
                     }
+                }
+
+                // Handle Reddit posts with mp4
+                if let Some(media_metadata) = media_metadata {
+                    let media_ids = media_metadata.keys().collect::<Vec<&String>>();
+
+                    return media_ids
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, media_id)| {
+                            media_metadata.get(*media_id).and_then(|media| {
+                                media.s.as_ref().and_then(|s_media| {
+                                    if let Some(mp4) = &s_media.mp4 {
+                                        return Some(RedditCrawlerPost {
+                                            author: author.to_owned(),
+                                            created_utc: created_utc.to_owned(),
+                                            extension: "mp4".to_owned(),
+                                            id: data.id.to_owned(),
+                                            index: Some(i),
+                                            provider: RedditMediaProviderType::RedditGifVideo,
+                                            subreddit: subreddit.to_owned(),
+                                            title: format!("{}-{}", title, i),
+                                            upvotes: upvotes.to_owned(),
+                                            url: mp4.to_owned(),
+                                        });
+                                    }
+                                    None
+                                })
+                            })
+                        })
+                        .collect::<Vec<_>>();
                 }
 
                 // Handle YouTube embeds
@@ -202,11 +319,13 @@ impl RedditPostParser {
 
                 // Handle Imgur embeds
                 if data.url.contains("imgur") {
+                    let extension: String = data.url.split('.').rev().take(1).collect();
+
                     return vec![
                         (RedditCrawlerPost {
                             author: author.to_owned(),
                             created_utc: created_utc.to_owned(),
-                            extension: "webp".to_owned(),
+                            extension,
                             id: data.id.to_owned(),
                             index: None,
                             provider: RedditMediaProviderType::ImgurImage,

@@ -4,6 +4,10 @@ A command-line tool written in Rust that crawls Reddit posts from a user or subr
 
 ## Usage
 
+Install the following dependencies:
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+
 You can see all available commands by running:
 
 ```sh
@@ -24,20 +28,29 @@ Download posts from `/r/redpandas` from the `top` tab filtered by `hour`:
 
 ## Features
 
-Currently supports these providers (these are the most common I found):
+### Providers (these are the most common I found):
 
 - [x] Reddit Images
 - [x] Reddit Videos
 - [x] Reddit Galleries
+- [x] Imgur Images
+- [x] Imgur Videos
 - [x] YouTube Videos
 - [x] Redgifs Videos
 
+### Caching
+
+After the downloads have finished, a cache.json file will be created.
+This file keeps track of the posts you have already downloaded and skips them on subsequent runs.
+
+### File format
+
+By default it will prefer `mp4` over `gif`, if available.
+
 ## Planned
 
-- [ ] Imgur Images
 - [ ] Providing custom filename scheme
-- [ ] Local caching
-- [ ] Configuration for conversion to other/small formats (avif/webp)
+- [ ] Configuration for conversion to other/small formats (avif/webp/webm)
 - [ ] Remove duplicated
 
 ## Development

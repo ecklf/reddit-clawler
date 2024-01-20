@@ -4,14 +4,14 @@ use crate::{
     reddit_parser::RedditPostParser,
     utils::{
         self, download_crawler_post,
-        state::{DownloadStats, SharedState},
+        state::{DownloadStats, FileCache, FileCacheItem, SharedState},
         DownloadProgress,
     },
 };
 use anyhow::anyhow;
 use owo_colors::OwoColorize;
 use spinoff::{spinners, Color, Spinner};
-use std::{error::Error, fs, sync::Arc, time::Duration};
+use std::{error::Error, fs, path::Path, sync::Arc, time::Duration};
 use tokio::{
     sync::{oneshot, Mutex, Semaphore},
     time::sleep,
@@ -65,10 +65,35 @@ pub async fn handle_user_command(
         .flat_map(|r| reddit_parser.parse(r))
         .collect::<Vec<_>>();
 
-    spinner.success(&format!("Done, trying to download {} posts", posts.len()));
+    let mut posts_to_download = posts.clone();
+    let file_cache_path = format!("{}/cache.json", output_folder);
+
+    if Path::new(&file_cache_path).exists() {
+        let file_cache = fs::read_to_string(format!("{}/cache.json", output_folder)).unwrap();
+        let file_cache =
+            serde_json::from_str::<FileCache>(&file_cache).expect("Failed to parse cache file");
+
+        let mut ss = shared_state.lock().await;
+        ss.file_cache = file_cache.clone();
+
+        posts_to_download = posts_to_download
+            .into_iter()
+            .filter(|p| {
+                // Try to find the successfully downloaded post in the cache
+                let found = file_cache.files.iter().any(|f| p.id == f.id && f.success);
+                !found
+            })
+            .collect::<Vec<_>>();
+    }
+
+    spinner.success(&format!(
+        "Done, trying to download {} posts. - Cached {}",
+        posts_to_download.len(),
+        posts.len() - posts_to_download.len()
+    ));
 
     let download_stats: Arc<Mutex<DownloadStats>> = Arc::new(Mutex::new(DownloadStats::default()));
-    let total_post_len = posts.len() as u64;
+    let total_post_len = posts_to_download.len() as u64;
     let download_progress: Arc<Mutex<DownloadProgress>> =
         Arc::new(Mutex::new(DownloadProgress::new(total_post_len)));
 
@@ -94,7 +119,7 @@ pub async fn handle_user_command(
         }
     });
 
-    for post in posts {
+    for post in posts_to_download {
         let client = client.clone();
         let output_folder = output_folder.clone();
 
@@ -105,21 +130,56 @@ pub async fn handle_user_command(
 
         tokio::spawn(async move {
             match download_crawler_post(&client, &ss_clone, &output_folder, &post).await {
-                Ok(bytes) => {
-                    if let Some(bytes) = bytes {
-                        let mut dl_stats = ds_clone.lock().await;
-                        dl_stats.files_downloaded += 1;
-                        dl_stats.bytes_downloaded += bytes;
+                Ok(result) => {
+                    match result {
+                        utils::DownloadPostResult::ReceivedBytes(bytes) => {
+                            let mut dl_stats = ds_clone.lock().await;
+                            dl_stats.files_downloaded += 1;
+                            dl_stats.bytes_downloaded += bytes;
 
-                        dp_clone.lock().await.update_progress(
-                            dl_stats.files_downloaded,
-                            total_post_len,
-                            dl_stats.bytes_downloaded,
-                        );
+                            ss_clone.lock().await.file_cache.files.push(FileCacheItem {
+                                id: post.id.clone(),
+                                created_utc: post.created_utc,
+                                title: post.title.clone(),
+                                subreddit: post.subreddit.clone(),
+                                url: post.url.clone(),
+                                success: true,
+                                index: post.index,
+                            });
+
+                            dp_clone.lock().await.update_progress(
+                                dl_stats.files_downloaded,
+                                total_post_len,
+                                dl_stats.bytes_downloaded,
+                            );
+                        }
+                        utils::DownloadPostResult::ReceivedNotFound => {
+                            ss_clone.lock().await.file_cache.files.push(FileCacheItem {
+                                id: post.id.clone(),
+                                created_utc: post.created_utc,
+                                title: post.title.clone(),
+                                subreddit: post.subreddit.clone(),
+                                url: post.url.clone(),
+                                success: false,
+                                index: post.index,
+                            });
+                            let mut dl_stats = ds_clone.lock().await;
+                            dl_stats.downloads_failed += 1;
+                        }
+                        utils::DownloadPostResult::ReceivedFailed => {
+                            let mut dl_stats = ds_clone.lock().await;
+                            dl_stats.downloads_failed += 1;
+                        }
+
+                        utils::DownloadPostResult::ReceivedUnhandled => {
+                            // Do nothing
+                        }
                     }
                 }
-
-                Err(_) => println!("Failed - {}", &output_folder),
+                Err(_) => {
+                    let mut dl_stats = ds_clone.lock().await;
+                    dl_stats.downloads_failed += 1;
+                }
             }
             drop(permit);
         })
@@ -136,6 +196,10 @@ pub async fn handle_user_command(
     );
 
     clockwork_orange.await?;
+
+    let file_cache = &shared_state.lock().await.file_cache;
+    let cache = serde_json::to_string(file_cache)?;
+    fs::write(format!("{}/cache.json", output_folder), cache)?;
 
     Ok(())
 }

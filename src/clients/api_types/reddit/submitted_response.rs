@@ -48,7 +48,7 @@ pub struct RedditSubmittedChildData {
     // pub url_overridden_by_dest: Option<String>,
     // #[serde(rename = "over_18")]
     // pub over_18: bool,
-    // pub preview: Option<Preview>,
+    pub preview: Option<Preview>,
     #[serde(rename = "media_only")]
     pub media_only: bool,
     // #[serde(rename = "subreddit_id")]
@@ -225,6 +225,8 @@ pub struct Resolution {
 pub struct Variants {
     pub obfuscated: Option<Obfuscated>,
     pub nsfw: Option<Nsfw>,
+    pub gif: Option<Gif>,
+    pub mp4: Option<Mp4>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -237,6 +239,20 @@ pub struct Obfuscated {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Nsfw {
+    pub source: Source,
+    pub resolutions: Vec<Resolution>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Gif {
+    pub source: Source,
+    pub resolutions: Vec<Resolution>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Mp4 {
     pub source: Source,
     pub resolutions: Vec<Resolution>,
 }
@@ -290,7 +306,7 @@ pub struct MediaMetadataValue {
 pub struct O {
     pub y: i64,
     pub x: i64,
-    pub u: String,
+    pub u: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -298,7 +314,7 @@ pub struct O {
 pub struct P {
     pub y: i64,
     pub x: i64,
-    pub u: String,
+    pub u: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -306,7 +322,9 @@ pub struct P {
 pub struct S {
     pub y: i64,
     pub x: i64,
-    pub u: String,
+    pub u: Option<String>,
+    pub gif: Option<String>,
+    pub mp4: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

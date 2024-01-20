@@ -85,7 +85,9 @@ pub async fn download_crawler_post(
     );
 
     let response = match provider {
-        RedditMediaProviderType::RedditImage | RedditMediaProviderType::RedditGalleryImage => {
+        RedditMediaProviderType::RedditImage
+        | RedditMediaProviderType::RedditGalleryImage
+        | RedditMediaProviderType::RedditGifVideo => {
             ProviderHandlerReturned::HttpResponse(client.get(url).send().await?)
         }
         RedditMediaProviderType::RedditVideo => {

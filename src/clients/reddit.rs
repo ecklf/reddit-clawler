@@ -14,6 +14,10 @@ pub enum RedditParserError {
     Reqwest(#[from] reqwest::Error),
     #[error("JSON deserialization error: {0}")]
     SerdeJson(#[from] serde_json::Error),
+    #[error("Reddit returned a 404 Not Found error")]
+    NotFound,
+    #[error("Reddit returned a 403 Forbidden error")]
+    Forbidden,
 }
 
 pub struct RedditClient {
@@ -60,15 +64,23 @@ impl RedditClient {
                 None => self.gen_user_submitted_url(user, None),
             };
 
-            let res: RedditSubmittedResponse = client
+            let res = client
                 .get(&url)
                 .headers(self.headers.to_owned())
                 .send()
                 .await
-                .map_err(RedditParserError::ReqwestMiddleware)?
-                .json()
-                .await
-                .map_err(RedditParserError::Reqwest)?;
+                .map_err(RedditParserError::ReqwestMiddleware)?;
+
+            if res.status() == reqwest::StatusCode::NOT_FOUND {
+                return Err(RedditParserError::NotFound);
+            }
+
+            if res.status() == reqwest::StatusCode::FORBIDDEN {
+                return Err(RedditParserError::Forbidden);
+            }
+
+            let res: RedditSubmittedResponse =
+                res.json().await.map_err(RedditParserError::Reqwest)?;
 
             responses.push(res.to_owned());
 

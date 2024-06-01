@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RedditSubmittedResponse {
-    pub kind: String,
+    pub kind: Option<String>,
     pub data: Data,
 }
 
@@ -25,7 +25,7 @@ pub struct Data {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RedditSubmittedChild {
-    pub kind: String,
+    pub kind: Option<String>,
     pub data: RedditSubmittedChildData,
 }
 
@@ -116,7 +116,7 @@ pub struct SecureMedia {
 #[serde(rename_all = "camelCase")]
 pub struct RedditVideo {
     #[serde(rename = "bitrate_kbps")]
-    pub bitrate_kbps: i64,
+    pub bitrate_kbps: Option<i64>,
     #[serde(rename = "fallback_url")]
     pub fallback_url: String,
     pub height: i64,
@@ -261,7 +261,7 @@ pub struct Mp4 {
 #[serde(rename_all = "camelCase")]
 pub struct RedditVideoPreview {
     #[serde(rename = "bitrate_kbps")]
-    pub bitrate_kbps: i64,
+    pub bitrate_kbps: Option<i64>,
     #[serde(rename = "fallback_url")]
     pub fallback_url: String,
     pub height: i64,

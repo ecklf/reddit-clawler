@@ -11,7 +11,7 @@ impl DownloadProgress {
         let stats = ProgressBar::new(len);
         stats.set_style(
             ProgressStyle::with_template(
-                "[{spinner:.202}] — [{elapsed_precise}] — [{wide_bar:.202}] — {msg} ({eta})",
+                "{spinner:.202} — [{elapsed_precise}] — [{wide_bar:.202}] — {msg} ({eta})",
             )
             .unwrap()
             .with_key(

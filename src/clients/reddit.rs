@@ -16,6 +16,8 @@ pub enum RedditParserError {
     SerdeJson(#[from] serde_json::Error),
     #[error("Reddit returned a 404 Not Found error")]
     NotFound,
+    #[error("Reddit returned a 429 Too Many Requests error")]
+    TooManyRequests,
     #[error("Reddit returned a 403 Forbidden error")]
     Forbidden,
 }
@@ -70,6 +72,10 @@ impl RedditClient {
                 .send()
                 .await
                 .map_err(RedditParserError::ReqwestMiddleware)?;
+
+            if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                return Err(RedditParserError::TooManyRequests);
+            }
 
             if res.status() == reqwest::StatusCode::NOT_FOUND {
                 return Err(RedditParserError::NotFound);

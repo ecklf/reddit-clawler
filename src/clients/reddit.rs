@@ -4,7 +4,7 @@ use crate::{
 };
 use reqwest::header::HeaderMap;
 use thiserror::Error;
-const MAX_SUBMISSIONS_PER_REQUEST: u32 = 100;
+const MAX_SUBMISSIONS_PER_REQUEST: u32 = 500;
 
 #[derive(Error, Debug)]
 pub enum RedditParserError {

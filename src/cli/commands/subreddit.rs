@@ -42,7 +42,9 @@ pub async fn handle_subreddit_command(
             b: 44,
         },
     );
-    let output_folder = utils::get_output_folder(&options.output, &subreddit);
+
+    let stem = format!("subreddit/{}", subreddit);
+    let output_folder = utils::get_output_folder(&options.output, &stem);
     utils::prepare_output_folder(&output_folder)?;
     let responses = reddit_client
         .get_subreddit_submissions(client, &subreddit, &category, &timeframe)

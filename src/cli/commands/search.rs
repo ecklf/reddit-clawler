@@ -1,6 +1,6 @@
 use crate::{
-    cli::CliUserCommand,
-    clients::{self, api_types::reddit::submitted_response::RedditSubmittedResponse},
+    cli::CliSearchCommand,
+    clients::{self},
     reddit_parser::RedditPostParser,
     utils::{
         self, download_crawler_post,
@@ -17,12 +17,17 @@ use tokio::{
     time::sleep,
 };
 
-pub async fn handle_user_command(
-    cmd: CliUserCommand,
+pub async fn handle_search_command(
+    cmd: CliSearchCommand,
     client: &reqwest_middleware::ClientWithMiddleware,
     shared_state: &Arc<Mutex<SharedState>>,
 ) -> Result<(), Box<dyn Error>> {
-    let CliUserCommand { username, options } = cmd;
+    let CliSearchCommand {
+        term,
+        category,
+        timeframe,
+        options,
+    } = cmd;
 
     let (tx, mut rx) = oneshot::channel::<bool>();
     let reddit_client = clients::RedditClient::default();
@@ -30,19 +35,26 @@ pub async fn handle_user_command(
 
     let mut spinner = Spinner::new(
         spinners::Dots,
-        format!("Fetching posts from {}{}", "/u/".bold(), username.bold()),
+        format!("Fetching posts for search term: {}", "".bold()),
         Color::TrueColor {
             r: 237,
             g: 106,
             b: 44,
         },
     );
-
-    let stem = format!("user/{}", username);
+    let stem = format!("search/{}", term);
     let output_folder = utils::get_output_folder(&options.output, &stem);
-
     utils::prepare_output_folder(&output_folder)?;
+    let responses = reddit_client
+        .get_reddit_search(client, &term, &category, &timeframe)
+        .await?;
 
+    let posts = responses
+        .iter()
+        .flat_map(|r| reddit_parser.parse(r))
+        .collect::<Vec<_>>();
+
+    let mut posts_to_download = posts.clone();
     let file_cache_path = format!("{}/cache.json", output_folder);
 
     if Path::new(&file_cache_path).exists() {
@@ -52,46 +64,12 @@ pub async fn handle_user_command(
 
         let mut ss = shared_state.lock().await;
         ss.file_cache = file_cache.clone();
-    }
 
-    let responses = match options.mock {
-        Some(mock_file) => {
-            println!(
-                "{}",
-                format_args!("{} {}", "[FLAG]".red().bold(), "Mock mode enabled".bold()),
-            );
-
-            let file = fs::read_to_string(mock_file)
-                .map_err(|e| format!("Failed to read mock file: {}", e))?;
-
-            serde_json::from_str::<Vec<RedditSubmittedResponse>>(&file)
-                .expect("Failed to parse mock file")
-        }
-        _ => {
-            reddit_client
-                .get_user_submissions(client, &username, shared_state)
-                .await?
-        }
-    };
-
-    let posts = responses
-        .iter()
-        .flat_map(|r| reddit_parser.parse(r))
-        .collect::<Vec<_>>();
-
-    let mut posts_to_download = posts.clone();
-
-    if Path::new(&file_cache_path).exists() {
-        let ss = shared_state.lock().await;
         posts_to_download = posts_to_download
             .into_iter()
             .filter(|p| {
                 // Try to find the successfully downloaded post in the cache
-                let found = ss
-                    .file_cache
-                    .files
-                    .iter()
-                    .any(|f| p.id == f.id && f.success);
+                let found = file_cache.files.iter().any(|f| p.id == f.id && f.success);
                 !found
             })
             .collect::<Vec<_>>();
@@ -104,7 +82,7 @@ pub async fn handle_user_command(
     ));
 
     let download_stats: Arc<Mutex<DownloadStats>> = Arc::new(Mutex::new(DownloadStats::default()));
-    let total_post_len = posts_to_download.len() as u64;
+    let total_post_len: u64 = posts_to_download.len() as u64;
     let download_progress: Arc<Mutex<DownloadProgress>> =
         Arc::new(Mutex::new(DownloadProgress::new(total_post_len)));
 

@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create client and state that is shared between tokio tasks
     // Retries up to 10 times with increasing intervals between attempts
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(10);
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(8);
     let client = ClientBuilder::new(reqwest::Client::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
         .build();
@@ -33,6 +33,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         cli::CliCommand::Subreddit(cmd) => {
             cli::handle_subreddit_command(cmd, &client, &shared_state).await?;
+        }
+
+        cli::CliCommand::Search(cmd) => {
+            cli::handle_search_command(cmd, &client, &shared_state).await?;
         }
     }
 

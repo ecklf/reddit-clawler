@@ -21,8 +21,8 @@ pub fn prepare_output_folder(folder_path: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn get_output_folder(path: &str, username: &str) -> String {
-    format!("{}/{}", path, username)
+pub fn get_output_folder(path: &str, stem: &str) -> String {
+    format!("{}/{}", path, stem)
 }
 
 enum ProviderHandlerReturned {

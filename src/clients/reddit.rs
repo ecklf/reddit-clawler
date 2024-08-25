@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 const MAX_SUBMISSIONS_PER_REQUEST: u32 = 500;
 
 #[derive(Error, Debug)]
-pub enum RedditParserError {
+pub enum RedditProviderError {
     #[error("ReqwestMiddleware error: {0}")]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),
     #[error("Reqwest error: {0}")]
@@ -43,15 +43,24 @@ impl Default for RedditClient {
 }
 
 impl RedditClient {
-    fn gen_user_submitted_url(&self, user: &str, after: Option<&str>) -> String {
+    fn gen_user_submitted_url(
+        &self,
+        user: &str,
+        after: Option<&str>,
+        category: &RedditCategoryFilter,
+        timeframe: &RedditTimeframeFilter,
+    ) -> String {
+        let category = self.get_category_str(category);
+        let timeframe = self.get_timeframe_str(timeframe);
+
         match after {
             Some(after) => format!(
-                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort=top&t=all&after={}&raw_json=1",
-                user, MAX_SUBMISSIONS_PER_REQUEST, after
+                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort={}&t={}&after={}&raw_json=1",
+                user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST, after
             ),
             None => format!(
-                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort=top&t=all&raw_json=1",
-                user, MAX_SUBMISSIONS_PER_REQUEST
+                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort={}&t={}&raw_json=1",
+                user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST
             ),
         }
     }
@@ -61,14 +70,16 @@ impl RedditClient {
         client: &reqwest_middleware::ClientWithMiddleware,
         user: &str,
         shared_state: &Arc<Mutex<SharedState>>,
-    ) -> Result<Vec<RedditSubmittedResponse>, RedditParserError> {
+        category: &RedditCategoryFilter,
+        timeframe: &RedditTimeframeFilter,
+    ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
         let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
         let mut after: Option<String> = None;
 
         loop {
             let url = match after {
-                Some(after) => self.gen_user_submitted_url(user, Some(&after)),
-                None => self.gen_user_submitted_url(user, None),
+                Some(after) => self.gen_user_submitted_url(user, Some(&after), category, timeframe),
+                None => self.gen_user_submitted_url(user, None, category, timeframe),
             };
 
             let res = client
@@ -76,22 +87,22 @@ impl RedditClient {
                 .headers(self.headers.to_owned())
                 .send()
                 .await
-                .map_err(RedditParserError::ReqwestMiddleware)?;
+                .map_err(RedditProviderError::ReqwestMiddleware)?;
 
             if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                return Err(RedditParserError::TooManyRequests);
+                return Err(RedditProviderError::TooManyRequests);
             }
 
             if res.status() == reqwest::StatusCode::NOT_FOUND {
-                return Err(RedditParserError::NotFound);
+                return Err(RedditProviderError::NotFound);
             }
 
             if res.status() == reqwest::StatusCode::FORBIDDEN {
-                return Err(RedditParserError::Forbidden);
+                return Err(RedditProviderError::Forbidden);
             }
 
             let mut res: RedditSubmittedResponse =
-                res.json().await.map_err(RedditParserError::Reqwest)?;
+                res.json().await.map_err(RedditProviderError::Reqwest)?;
 
             let file_cache = &shared_state.lock().await.file_cache;
 
@@ -103,15 +114,8 @@ impl RedditClient {
                 .collect::<Vec<_>>();
             res.data.children = non_downloaded;
 
-            match res.data.children.is_empty() {
-                true => {
-                    // If we already have all posts from the last request in the file_cache
-                    // We assume we already finished downloading all posts
-                    break;
-                }
-                false => {
-                    responses.push(res.to_owned());
-                }
+            if !res.data.children.is_empty() {
+                responses.push(res.to_owned());
             }
 
             match res.data.after {
@@ -175,7 +179,7 @@ impl RedditClient {
         subreddit: &str,
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
-    ) -> Result<Vec<RedditSubmittedResponse>, RedditParserError> {
+    ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
         let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
         let mut after: Option<String> = None;
 
@@ -192,10 +196,10 @@ impl RedditClient {
                 .headers(self.headers.to_owned())
                 .send()
                 .await
-                .map_err(RedditParserError::ReqwestMiddleware)?
+                .map_err(RedditProviderError::ReqwestMiddleware)?
                 .json()
                 .await
-                .map_err(RedditParserError::Reqwest)?;
+                .map_err(RedditProviderError::Reqwest)?;
 
             responses.push(res.to_owned());
 
@@ -240,7 +244,7 @@ impl RedditClient {
         term: &str,
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
-    ) -> Result<Vec<RedditSubmittedResponse>, RedditParserError> {
+    ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
         let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
         let mut after: Option<String> = None;
 
@@ -255,10 +259,10 @@ impl RedditClient {
                 .headers(self.headers.to_owned())
                 .send()
                 .await
-                .map_err(RedditParserError::ReqwestMiddleware)?
+                .map_err(RedditProviderError::ReqwestMiddleware)?
                 .json()
                 .await
-                .map_err(RedditParserError::Reqwest)?;
+                .map_err(RedditProviderError::Reqwest)?;
 
             responses.push(res.to_owned());
 

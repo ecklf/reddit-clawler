@@ -12,6 +12,8 @@ pub struct CliSharedOptions {
 #[derive(Debug)]
 pub struct CliUserCommand {
     pub username: String,
+    pub category: RedditCategoryFilter,
+    pub timeframe: RedditTimeframeFilter,
     pub options: CliSharedOptions,
 }
 
@@ -100,6 +102,22 @@ pub fn run() -> CliCommand {
             Command::new("user")
                 .about("Download posts from a specific user")
                 .arg(Arg::new("username").required(true).index(1))
+                .arg(
+                    Arg::new("category")
+                        .long("category")
+                        .long_help("Category for posts")
+                        .value_name("hot|new|top|rising")
+                        .value_parser(EnumValueParser::<RedditCategoryFilter>::new())
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("timeframe")
+                        .long("timeframe")
+                        .long_help("Timeframe for posts")
+                        .value_name("hour|day|week|month|year|all")
+                        .value_parser(EnumValueParser::<RedditTimeframeFilter>::new())
+                        .required(true),
+                )
                 .args(shared_args.clone()),
         )
         .subcommand(
@@ -109,7 +127,7 @@ pub fn run() -> CliCommand {
                 .arg(
                     Arg::new("category")
                         .long("category")
-                        .long_help("category for posts")
+                        .long_help("Category for posts")
                         .value_name("hot|new|top|rising")
                         .value_parser(EnumValueParser::<RedditCategoryFilter>::new())
                         .required(true),
@@ -131,7 +149,7 @@ pub fn run() -> CliCommand {
                 .arg(
                     Arg::new("category")
                         .long("category")
-                        .long_help("category for posts")
+                        .long_help("Category for posts")
                         .value_name("hot|new|top|rising")
                         .value_parser(EnumValueParser::<RedditCategoryFilter>::new())
                         .required(true),
@@ -168,10 +186,13 @@ pub fn run() -> CliCommand {
     match matches.subcommand() {
         Some(("user", m)) => {
             let username = m.get_one::<String>("username").unwrap().to_string();
+            let category = m.get_one::<RedditCategoryFilter>("category").unwrap().to_owned();
+            let timeframe = m.get_one::<RedditTimeframeFilter>("timeframe").unwrap().to_owned();
             let shared_options = get_shared_options(m);
-
             CliCommand::User(CliUserCommand {
                 username,
+                category,
+                timeframe,
                 options: shared_options
             })
         }

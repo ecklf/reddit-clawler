@@ -17,8 +17,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cli_request = cli::run();
 
     // Create client and state that is shared between tokio tasks
-    // Retries up to 10 times with increasing intervals between attempts
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(8);
+    // Retries up to 3 times with increasing intervals between attempts
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
     let client = ClientBuilder::new(reqwest::Client::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
         .build();

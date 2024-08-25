@@ -4,7 +4,10 @@ use crate::{
     reddit_parser::RedditPostParser,
     utils::{
         self, download_crawler_post,
-        state::{DownloadStats, FileCacheItemLatest, FileCacheLatest, ResourceStatus, SharedState},
+        state::{
+            DownloadStats, FileCacheItemLatest, FileCacheLatest, LastDownloadStatus,
+            ResourceStatus, SharedState,
+        },
         DownloadProgress,
     },
 };
@@ -54,10 +57,18 @@ pub async fn handle_user_command(
         let file_cache = fs::read_to_string(format!("{}/cache.json", output_folder)).unwrap();
         let file_cache = FileCacheLatest::from_str(&file_cache)?;
 
-        if file_cache.status == ResourceStatus::Deleted {
+        if file_cache.status.resource == ResourceStatus::Deleted
+            || file_cache.status.resource == ResourceStatus::Suspended
+        {
+            let issue = match file_cache.status.resource {
+                ResourceStatus::Deleted => "deleted",
+                ResourceStatus::Suspended => "suspended",
+                _ => unreachable!(),
+            };
+
             spinner.fail(&format!(
-                "The user, {} has been marked as deleted in cache. Skipping download",
-                &username
+                "The user, {} has been marked as {} in cache. Skipping download",
+                &username, issue
             ));
             return Ok(());
         }
@@ -90,13 +101,35 @@ pub async fn handle_user_command(
                 Err(e) => match e {
                     clients::RedditProviderError::NotFound => {
                         let mut ss = shared_state.lock().await;
-                        ss.file_cache.status = ResourceStatus::Deleted;
+                        ss.file_cache.status.resource = ResourceStatus::Deleted;
                         fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                         spinner.fail(&format!(
                             "The user, {} has been deleted. Skipping download - cache updated",
                             &username
                         ));
                         return Ok(());
+                    }
+                    clients::RedditProviderError::Suspended => {
+                        let mut ss = shared_state.lock().await;
+                        ss.file_cache.status.resource = ResourceStatus::Suspended;
+                        fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        spinner.fail(&format!(
+                            "The user, {} has been suspended. Skipping download - cache updated",
+                            &username
+                        ));
+                        return Ok(());
+                    }
+                    clients::RedditProviderError::TooManyRequests => {
+                        let mut ss = shared_state.lock().await;
+                        ss.file_cache.status.last_download = LastDownloadStatus::RateLimit;
+                        fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        return Err(Box::new(e));
+                    }
+                    clients::RedditProviderError::Forbidden => {
+                        let mut ss = shared_state.lock().await;
+                        ss.file_cache.status.last_download = LastDownloadStatus::Forbidden;
+                        fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        return Err(Box::new(e));
                     }
                     _ => {
                         return Err(Box::new(e));

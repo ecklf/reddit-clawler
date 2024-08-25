@@ -2,13 +2,15 @@ use std::sync::Arc;
 
 use crate::{
     cli::{RedditCategoryFilter, RedditTimeframeFilter},
-    clients::api_types::reddit::submitted_response::RedditSubmittedResponse,
+    clients::api_types::reddit::{
+        submitted_response::RedditSubmittedResponse, user_about::RedditUserAbout,
+    },
     utils::state::SharedState,
 };
 use reqwest::header::HeaderMap;
 use thiserror::Error;
 use tokio::sync::Mutex;
-const MAX_SUBMISSIONS_PER_REQUEST: u32 = 500;
+const MAX_SUBMISSIONS_PER_REQUEST: u32 = 100;
 
 #[derive(Error, Debug)]
 pub enum RedditProviderError {
@@ -18,8 +20,10 @@ pub enum RedditProviderError {
     Reqwest(#[from] reqwest::Error),
     #[error("JSON deserialization error: {0}")]
     SerdeJson(#[from] serde_json::Error),
-    #[error("Reddit returned a 404 Not Found error")]
+    #[error("Reddit returned a Not Found status")]
     NotFound,
+    #[error("Reddit returned a Suspended status")]
+    Suspended,
     #[error("Reddit returned a 429 Too Many Requests error")]
     TooManyRequests,
     #[error("Reddit returned a 403 Forbidden error")]
@@ -65,6 +69,34 @@ impl RedditClient {
         }
     }
 
+    pub async fn get_user_about(
+        &self,
+        client: &reqwest_middleware::ClientWithMiddleware,
+        user: &str,
+    ) -> Result<RedditUserAbout, RedditProviderError> {
+        let res = client
+            .get(format!(
+                "https://www.reddit.com/user/{}/about.json?raw_json=1",
+                user
+            ))
+            .headers(self.headers.to_owned())
+            .send()
+            .await
+            .map_err(RedditProviderError::ReqwestMiddleware)?;
+
+        if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(RedditProviderError::TooManyRequests);
+        }
+
+        if res.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(RedditProviderError::NotFound);
+        }
+
+        res.json::<RedditUserAbout>()
+            .await
+            .map_err(RedditProviderError::Reqwest)
+    }
+
     pub async fn get_user_submissions(
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
@@ -98,7 +130,15 @@ impl RedditClient {
             }
 
             if res.status() == reqwest::StatusCode::FORBIDDEN {
-                return Err(RedditProviderError::Forbidden);
+                let about = self
+                    .get_user_about(client, user)
+                    .await
+                    .map_err(|_| RedditProviderError::Forbidden)?;
+
+                match about.data.is_suspended {
+                    true => return Err(RedditProviderError::Suspended),
+                    false => return Err(RedditProviderError::Forbidden),
+                }
             }
 
             let mut res: RedditSubmittedResponse =

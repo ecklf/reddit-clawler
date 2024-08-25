@@ -59,20 +59,30 @@ pub enum ResourceStatus {
     #[default]
     Active,
     Deleted,
+    Suspended,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LastDownloadStatus {
+    #[default]
+    Success,
+    RateLimit,
     Forbidden,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FileCacheInfo {
-    pub status: ResourceStatus,
+pub struct FileCacheStatus {
+    pub resource: ResourceStatus,
+    pub last_download: LastDownloadStatus,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileCacheLatest {
     pub version: FileCacheVersion,
-    pub status: ResourceStatus,
+    pub status: FileCacheStatus,
     pub files: Vec<FileCacheItemLatest>,
 }
 
@@ -132,6 +142,10 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
             get_cache_from_serde_value(value)
         }
         FileCacheVersion::Latest => {
+            // value["status"] = json!({
+            //     "resource": "active",
+            //     "lastDownload": "success"
+            // });
             serde_json::from_value::<FileCacheLatest>(value).map_err(FileCacheError::SerdeJson)
         }
     }
@@ -168,7 +182,10 @@ impl Default for SharedState {
             file_cache_path: None,
             file_cache: FileCacheLatest {
                 version: FileCacheVersion::Latest,
-                status: ResourceStatus::Active,
+                status: FileCacheStatus {
+                    resource: ResourceStatus::Active,
+                    last_download: LastDownloadStatus::Success,
+                },
                 files: Vec::new(),
             },
         }

@@ -44,11 +44,8 @@ Crawls posts for search term `olympics` from the `top` category, filtered by `ho
 
 ### Providers (these are the most common I found):
 
-- [x] Reddit Images
-- [x] Reddit Videos
-- [x] Reddit Galleries
-- [x] Imgur Images
-- [x] Imgur Videos
+- [x] Reddit Media
+- [x] Imgur Media
 - [x] YouTube Videos
 - [x] Redgifs Videos
 

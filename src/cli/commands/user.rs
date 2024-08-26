@@ -1,5 +1,5 @@
 use crate::{
-    cli::CliUserCommand,
+    cli::CliRedditCommand,
     clients::{self, api_types::reddit::submitted_response::RedditSubmittedResponse},
     reddit_parser::RedditPostParser,
     utils::{
@@ -21,12 +21,12 @@ use tokio::{
 };
 
 pub async fn handle_user_command(
-    cmd: CliUserCommand,
+    cmd: CliRedditCommand,
     client: &reqwest_middleware::ClientWithMiddleware,
     shared_state: &Arc<Mutex<SharedState>>,
 ) -> Result<(), Box<dyn Error>> {
-    let CliUserCommand {
-        username,
+    let CliRedditCommand {
+        resource: username,
         options,
         category,
         timeframe,
@@ -57,6 +57,10 @@ pub async fn handle_user_command(
         let file_cache = fs::read_to_string(format!("{}/cache.json", output_folder)).unwrap();
         let file_cache = FileCacheLatest::from_str(&file_cache)?;
 
+        let mut ss = shared_state.lock().await;
+        ss.file_cache_path = Some(file_cache_path.clone());
+        ss.file_cache = file_cache.clone();
+
         if file_cache.status.resource == ResourceStatus::Deleted
             || file_cache.status.resource == ResourceStatus::Suspended
         {
@@ -65,17 +69,14 @@ pub async fn handle_user_command(
                 ResourceStatus::Suspended => "suspended",
                 _ => unreachable!(),
             };
-
+            ss.file_cache.status.last_download = LastDownloadStatus::Success;
+            fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
             spinner.fail(&format!(
                 "The user, {} has been marked as {} in cache. Skipping download",
                 &username, issue
             ));
             return Ok(());
         }
-
-        let mut ss = shared_state.lock().await;
-        ss.file_cache_path = Some(file_cache_path.clone());
-        ss.file_cache = file_cache.clone();
     }
 
     let responses = match options.mock {
@@ -93,16 +94,22 @@ pub async fn handle_user_command(
         }
         _ => {
             let response = reddit_client
-                .get_user_submissions(client, &username, shared_state, &category, &timeframe)
+                .get_user_submissions(client, shared_state, &username, &category, &timeframe)
                 .await;
 
             match response {
-                Ok(responses) => responses,
+                Ok(responses) => {
+                    let mut ss = shared_state.lock().await;
+                    ss.file_cache.status.last_download = LastDownloadStatus::Success;
+                    fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                    responses
+                }
                 Err(e) => match e {
                     clients::RedditProviderError::NotFound => {
                         let mut ss = shared_state.lock().await;
                         ss.file_cache.status.resource = ResourceStatus::Deleted;
-                        fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        ss.file_cache.status.last_download = LastDownloadStatus::Success;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                         spinner.fail(&format!(
                             "The user, {} has been deleted. Skipping download - cache updated",
                             &username
@@ -112,7 +119,8 @@ pub async fn handle_user_command(
                     clients::RedditProviderError::Suspended => {
                         let mut ss = shared_state.lock().await;
                         ss.file_cache.status.resource = ResourceStatus::Suspended;
-                        fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        ss.file_cache.status.last_download = LastDownloadStatus::Success;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                         spinner.fail(&format!(
                             "The user, {} has been suspended. Skipping download - cache updated",
                             &username
@@ -122,16 +130,19 @@ pub async fn handle_user_command(
                     clients::RedditProviderError::TooManyRequests => {
                         let mut ss = shared_state.lock().await;
                         ss.file_cache.status.last_download = LastDownloadStatus::RateLimit;
-                        fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                         return Err(Box::new(e));
                     }
                     clients::RedditProviderError::Forbidden => {
                         let mut ss = shared_state.lock().await;
                         ss.file_cache.status.last_download = LastDownloadStatus::Forbidden;
-                        fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                         return Err(Box::new(e));
                     }
                     _ => {
+                        let mut ss = shared_state.lock().await;
+                        ss.file_cache.status.last_download = LastDownloadStatus::Error;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                         return Err(Box::new(e));
                     }
                 },

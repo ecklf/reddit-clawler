@@ -10,24 +10,8 @@ pub struct CliSharedOptions {
 }
 
 #[derive(Debug)]
-pub struct CliUserCommand {
-    pub username: String,
-    pub category: RedditCategoryFilter,
-    pub timeframe: RedditTimeframeFilter,
-    pub options: CliSharedOptions,
-}
-
-#[derive(Debug)]
-pub struct CliSearchCommand {
-    pub term: String,
-    pub category: RedditCategoryFilter,
-    pub timeframe: RedditTimeframeFilter,
-    pub options: CliSharedOptions,
-}
-
-#[derive(Debug)]
-pub struct CliSubredditCommand {
-    pub subreddit: String,
+pub struct CliRedditCommand {
+    pub resource: String,
     pub category: RedditCategoryFilter,
     pub timeframe: RedditTimeframeFilter,
     pub options: CliSharedOptions,
@@ -35,9 +19,9 @@ pub struct CliSubredditCommand {
 
 #[derive(Debug)]
 pub enum CliCommand {
-    User(CliUserCommand),
-    Search(CliSearchCommand),
-    Subreddit(CliSubredditCommand),
+    User(CliRedditCommand),
+    Search(CliRedditCommand),
+    Subreddit(CliRedditCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum)]
@@ -101,7 +85,7 @@ pub fn run() -> CliCommand {
         .subcommand(
             Command::new("user")
                 .about("Download posts from a specific user")
-                .arg(Arg::new("username").required(true).index(1))
+                .arg(Arg::new("resource").required(true).index(1))
                 .arg(
                     Arg::new("category")
                         .long("category")
@@ -123,7 +107,7 @@ pub fn run() -> CliCommand {
         .subcommand(
             Command::new("search")
                 .about("Download posts from a specific search term")
-                .arg(Arg::new("search").required(true).index(1))
+                .arg(Arg::new("resource").required(true).index(1))
                 .arg(
                     Arg::new("category")
                         .long("category")
@@ -145,7 +129,7 @@ pub fn run() -> CliCommand {
         .subcommand(
             Command::new("subreddit")
                 .about("Download posts from a specific subreddit")
-                .arg(Arg::new("subreddit").required(true).index(1))
+                .arg(Arg::new("resource").required(true).index(1))
                 .arg(
                     Arg::new("category")
                         .long("category")
@@ -185,36 +169,36 @@ pub fn run() -> CliCommand {
 
     match matches.subcommand() {
         Some(("user", m)) => {
-            let username = m.get_one::<String>("username").unwrap().to_string();
+            let resource = m.get_one::<String>("resource").unwrap().to_string();
             let category = m.get_one::<RedditCategoryFilter>("category").unwrap().to_owned();
             let timeframe = m.get_one::<RedditTimeframeFilter>("timeframe").unwrap().to_owned();
             let shared_options = get_shared_options(m);
-            CliCommand::User(CliUserCommand {
-                username,
+            CliCommand::User(CliRedditCommand {
+                resource,
                 category,
                 timeframe,
                 options: shared_options
             })
         }
         Some(("subreddit", m)) => {
-            let subreddit = m.get_one::<String>("subreddit").unwrap().to_string();
+            let resource = m.get_one::<String>("resource").unwrap().to_string();
             let category = m.get_one::<RedditCategoryFilter>("category").unwrap().to_owned();
             let timeframe = m.get_one::<RedditTimeframeFilter>("timeframe").unwrap().to_owned();
             let shared_options = get_shared_options(m);
-            CliCommand::Subreddit(CliSubredditCommand {
-                subreddit,
+            CliCommand::Subreddit(CliRedditCommand {
+                resource,
                 category,
                 timeframe,
                 options: shared_options
             })
         }
         Some(("search", m)) => {
-            let search = m.get_one::<String>("search").unwrap().to_string();
+            let resource = m.get_one::<String>("resource").unwrap().to_string();
             let category = m.get_one::<RedditCategoryFilter>("category").unwrap().to_owned();
             let timeframe = m.get_one::<RedditTimeframeFilter>("timeframe").unwrap().to_owned();
             let shared_options = get_shared_options(m);
-            CliCommand::Search(CliSearchCommand {
-                term: search,
+            CliCommand::Search(CliRedditCommand {
+                resource,
                 category,
                 timeframe,
                 options: shared_options

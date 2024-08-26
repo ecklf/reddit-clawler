@@ -47,6 +47,26 @@ impl Default for RedditClient {
 }
 
 impl RedditClient {
+    fn get_category_str(&self, category: &RedditCategoryFilter) -> String {
+        match category {
+            RedditCategoryFilter::Hot => "hot".to_string(),
+            RedditCategoryFilter::New => "new".to_string(),
+            RedditCategoryFilter::Top => "top".to_string(),
+            RedditCategoryFilter::Rising => "rising".to_string(),
+        }
+    }
+
+    fn get_timeframe_str(&self, timeframe: &RedditTimeframeFilter) -> String {
+        match timeframe {
+            RedditTimeframeFilter::Hour => "hour".to_string(),
+            RedditTimeframeFilter::Day => "day".to_string(),
+            RedditTimeframeFilter::Week => "week".to_string(),
+            RedditTimeframeFilter::Month => "month".to_string(),
+            RedditTimeframeFilter::Year => "year".to_string(),
+            RedditTimeframeFilter::All => "all".to_string(),
+        }
+    }
+
     fn gen_user_submitted_url(
         &self,
         user: &str,
@@ -69,7 +89,7 @@ impl RedditClient {
         }
     }
 
-    pub async fn get_user_about(
+    pub async fn gen_user_about_url(
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
         user: &str,
@@ -100,8 +120,8 @@ impl RedditClient {
     pub async fn get_user_submissions(
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
-        user: &str,
         shared_state: &Arc<Mutex<SharedState>>,
+        user: &str,
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
     ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
@@ -131,7 +151,7 @@ impl RedditClient {
 
             if res.status() == reqwest::StatusCode::FORBIDDEN {
                 let about = self
-                    .get_user_about(client, user)
+                    .gen_user_about_url(client, user)
                     .await
                     .map_err(|_| RedditProviderError::Forbidden)?;
 
@@ -171,26 +191,6 @@ impl RedditClient {
         Ok(responses)
     }
 
-    fn get_category_str(&self, category: &RedditCategoryFilter) -> String {
-        match category {
-            RedditCategoryFilter::Hot => "hot".to_string(),
-            RedditCategoryFilter::New => "new".to_string(),
-            RedditCategoryFilter::Top => "top".to_string(),
-            RedditCategoryFilter::Rising => "rising".to_string(),
-        }
-    }
-
-    fn get_timeframe_str(&self, timeframe: &RedditTimeframeFilter) -> String {
-        match timeframe {
-            RedditTimeframeFilter::Hour => "hour".to_string(),
-            RedditTimeframeFilter::Day => "day".to_string(),
-            RedditTimeframeFilter::Week => "week".to_string(),
-            RedditTimeframeFilter::Month => "month".to_string(),
-            RedditTimeframeFilter::Year => "year".to_string(),
-            RedditTimeframeFilter::All => "all".to_string(),
-        }
-    }
-
     fn gen_subreddit_submitted_url(
         &self,
         subreddit: &str,
@@ -216,6 +216,7 @@ impl RedditClient {
     pub async fn get_subreddit_submissions(
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
+        shared_state: &Arc<Mutex<SharedState>>,
         subreddit: &str,
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
@@ -231,17 +232,41 @@ impl RedditClient {
                 None => self.gen_subreddit_submitted_url(subreddit, None, category, timeframe),
             };
 
-            let res: RedditSubmittedResponse = client
+            let res = client
                 .get(&url)
                 .headers(self.headers.to_owned())
                 .send()
                 .await
-                .map_err(RedditProviderError::ReqwestMiddleware)?
-                .json()
-                .await
-                .map_err(RedditProviderError::Reqwest)?;
+                .map_err(RedditProviderError::ReqwestMiddleware)?;
 
-            responses.push(res.to_owned());
+            if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                return Err(RedditProviderError::TooManyRequests);
+            }
+
+            if res.status() == reqwest::StatusCode::NOT_FOUND {
+                return Err(RedditProviderError::NotFound);
+            }
+
+            if res.status() == reqwest::StatusCode::FORBIDDEN {
+                return Err(RedditProviderError::Forbidden);
+            }
+
+            let mut res: RedditSubmittedResponse =
+                res.json().await.map_err(RedditProviderError::Reqwest)?;
+
+            let file_cache = &shared_state.lock().await.file_cache;
+
+            let non_downloaded = res
+                .data
+                .children
+                .into_iter()
+                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
+                .collect::<Vec<_>>();
+            res.data.children = non_downloaded;
+
+            if !res.data.children.is_empty() {
+                responses.push(res.to_owned());
+            }
 
             match res.data.after {
                 Some(a) => {
@@ -278,9 +303,10 @@ impl RedditClient {
         }
     }
 
-    pub async fn get_reddit_search(
+    pub async fn get_search_submissions(
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
+        shared_state: &Arc<Mutex<SharedState>>,
         term: &str,
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
@@ -294,17 +320,41 @@ impl RedditClient {
                 None => self.gen_search_url(term, None, category, timeframe),
             };
 
-            let res: RedditSubmittedResponse = client
+            let res = client
                 .get(&url)
                 .headers(self.headers.to_owned())
                 .send()
                 .await
-                .map_err(RedditProviderError::ReqwestMiddleware)?
-                .json()
-                .await
-                .map_err(RedditProviderError::Reqwest)?;
+                .map_err(RedditProviderError::ReqwestMiddleware)?;
 
-            responses.push(res.to_owned());
+            if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                return Err(RedditProviderError::TooManyRequests);
+            }
+
+            if res.status() == reqwest::StatusCode::NOT_FOUND {
+                return Err(RedditProviderError::NotFound);
+            }
+
+            if res.status() == reqwest::StatusCode::FORBIDDEN {
+                return Err(RedditProviderError::Forbidden);
+            }
+
+            let mut res: RedditSubmittedResponse =
+                res.json().await.map_err(RedditProviderError::Reqwest)?;
+
+            let file_cache = &shared_state.lock().await.file_cache;
+
+            let non_downloaded = res
+                .data
+                .children
+                .into_iter()
+                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
+                .collect::<Vec<_>>();
+            res.data.children = non_downloaded;
+
+            if !res.data.children.is_empty() {
+                responses.push(res.to_owned());
+            }
 
             match res.data.after {
                 Some(a) => {

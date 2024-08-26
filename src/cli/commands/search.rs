@@ -1,32 +1,34 @@
 use crate::{
-    cli::CliSearchCommand,
-    clients::{self},
+    cli::CliRedditCommand,
+    clients::{self, api_types::reddit::submitted_response::RedditSubmittedResponse},
     reddit_parser::RedditPostParser,
     utils::{
         self, download_crawler_post,
-        state::{DownloadStats, FileCacheItemLatest, FileCacheLatest, SharedState},
+        state::{
+            DownloadStats, FileCacheItemLatest, FileCacheLatest, LastDownloadStatus, SharedState,
+        },
         DownloadProgress,
     },
 };
 use anyhow::anyhow;
 use owo_colors::OwoColorize;
 use spinoff::{spinners, Color, Spinner};
-use std::{error::Error, fs, mem, path::Path, sync::Arc, time::Duration};
+use std::{error::Error, fs, mem, path::Path, str::FromStr, sync::Arc, time::Duration};
 use tokio::{
     sync::{oneshot, Mutex, Semaphore},
     time::sleep,
 };
 
 pub async fn handle_search_command(
-    cmd: CliSearchCommand,
+    cmd: CliRedditCommand,
     client: &reqwest_middleware::ClientWithMiddleware,
     shared_state: &Arc<Mutex<SharedState>>,
 ) -> Result<(), Box<dyn Error>> {
-    let CliSearchCommand {
-        term,
+    let CliRedditCommand {
+        resource: search_term,
+        options,
         category,
         timeframe,
-        options,
     } = cmd;
 
     let (tx, mut rx) = oneshot::channel::<bool>();
@@ -35,19 +37,78 @@ pub async fn handle_search_command(
 
     let mut spinner = Spinner::new(
         spinners::Dots,
-        format!("Fetching posts for search term: {}", "".bold()),
+        format!("Fetching posts for search term {}", search_term.bold()),
         Color::TrueColor {
             r: 237,
             g: 106,
             b: 44,
         },
     );
-    let stem = format!("search/{}", term);
+
+    let stem = format!("search/{}", search_term);
     let output_folder = utils::get_output_folder(&options.output, &stem);
+
     utils::prepare_output_folder(&output_folder)?;
-    let responses = reddit_client
-        .get_reddit_search(client, &term, &category, &timeframe)
-        .await?;
+
+    let file_cache_path = format!("{}/cache.json", output_folder);
+
+    if Path::new(&file_cache_path).exists() {
+        let file_cache = fs::read_to_string(format!("{}/cache.json", output_folder)).unwrap();
+        let file_cache = FileCacheLatest::from_str(&file_cache)?;
+
+        let mut ss = shared_state.lock().await;
+        ss.file_cache_path = Some(file_cache_path.clone());
+        ss.file_cache = file_cache.clone();
+    }
+
+    let responses = match options.mock {
+        Some(mock_file) => {
+            println!(
+                "{}",
+                format_args!("{} {}", "[FLAG]".red().bold(), "Mock mode enabled".bold()),
+            );
+
+            let file = fs::read_to_string(mock_file)
+                .map_err(|e| format!("Failed to read mock file: {}", e))?;
+
+            serde_json::from_str::<Vec<RedditSubmittedResponse>>(&file)
+                .expect("Failed to parse mock file")
+        }
+        _ => {
+            let response = reddit_client
+                .get_search_submissions(client, shared_state, &search_term, &category, &timeframe)
+                .await;
+
+            match response {
+                Ok(responses) => {
+                    let mut ss = shared_state.lock().await;
+                    ss.file_cache.status.last_download = LastDownloadStatus::Success;
+                    fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                    responses
+                }
+                Err(e) => match e {
+                    clients::RedditProviderError::TooManyRequests => {
+                        let mut ss = shared_state.lock().await;
+                        ss.file_cache.status.last_download = LastDownloadStatus::RateLimit;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        return Err(Box::new(e));
+                    }
+                    clients::RedditProviderError::Forbidden => {
+                        let mut ss = shared_state.lock().await;
+                        ss.file_cache.status.last_download = LastDownloadStatus::Forbidden;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        return Err(Box::new(e));
+                    }
+                    _ => {
+                        let mut ss = shared_state.lock().await;
+                        ss.file_cache.status.last_download = LastDownloadStatus::Error;
+                        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+                        return Err(Box::new(e));
+                    }
+                },
+            }
+        }
+    };
 
     let posts = responses
         .iter()
@@ -55,21 +116,18 @@ pub async fn handle_search_command(
         .collect::<Vec<_>>();
 
     let mut posts_to_download = posts.clone();
-    let file_cache_path = format!("{}/cache.json", output_folder);
 
     if Path::new(&file_cache_path).exists() {
-        let file_cache = fs::read_to_string(format!("{}/cache.json", output_folder)).unwrap();
-        let file_cache = serde_json::from_str::<FileCacheLatest>(&file_cache)
-            .expect("Failed to parse cache file");
-
-        let mut ss = shared_state.lock().await;
-        ss.file_cache = file_cache.clone();
-
+        let ss = shared_state.lock().await;
         posts_to_download = posts_to_download
             .into_iter()
             .filter(|p| {
                 // Try to find the successfully downloaded post in the cache
-                let found = file_cache.files.iter().any(|f| p.id == f.id && f.success);
+                let found = ss
+                    .file_cache
+                    .files
+                    .iter()
+                    .any(|f| p.id == f.id && f.success);
                 !found
             })
             .collect::<Vec<_>>();
@@ -84,7 +142,7 @@ pub async fn handle_search_command(
     mem::drop(ss);
 
     let download_stats: Arc<Mutex<DownloadStats>> = Arc::new(Mutex::new(DownloadStats::default()));
-    let total_post_len: u64 = posts_to_download.len() as u64;
+    let total_post_len = posts_to_download.len() as u64;
     let download_progress: Arc<Mutex<DownloadProgress>> =
         Arc::new(Mutex::new(DownloadProgress::new(total_post_len)));
 
@@ -198,9 +256,11 @@ pub async fn handle_search_command(
 
     clockwork_orange.await?;
 
-    let file_cache = &shared_state.lock().await.file_cache;
-    let cache = serde_json::to_string(file_cache)?;
-    fs::write(format!("{}/cache.json", output_folder), cache)?;
+    let ss = &shared_state.lock().await;
+    let cache = serde_json::to_string(&ss.file_cache)?;
+    if let Some(file_cache_path) = &ss.file_cache_path {
+        fs::write(file_cache_path, cache)?;
+    }
 
     Ok(())
 }

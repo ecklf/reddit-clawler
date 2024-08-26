@@ -49,7 +49,7 @@ impl<'de> Deserialize<'de> for FileCacheVersion {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BaseFileCache {
+pub struct PartialFileCache {
     pub version: FileCacheVersion,
 }
 
@@ -69,6 +69,7 @@ pub enum LastDownloadStatus {
     Success,
     RateLimit,
     Forbidden,
+    Error,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -128,7 +129,7 @@ pub enum FileCacheError {
 }
 
 pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, FileCacheError> {
-    let BaseFileCache { version } = serde_json::from_value::<BaseFileCache>(value.clone())
+    let PartialFileCache { version } = serde_json::from_value::<PartialFileCache>(value.clone())
         .map_err(FileCacheError::SerdeJson)?;
 
     match version {
@@ -136,16 +137,14 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
             value["version"] = serde_json::to_value(FileCacheVersion::Latest)
                 .map_err(FileCacheError::SerdeJson)?;
 
-            value["status"] =
-                serde_json::to_value(ResourceStatus::Active).map_err(FileCacheError::SerdeJson)?;
-
+            value["status"] = serde_json::to_value(FileCacheStatus {
+                resource: ResourceStatus::Active,
+                last_download: LastDownloadStatus::Success,
+            })
+            .map_err(FileCacheError::SerdeJson)?;
             get_cache_from_serde_value(value)
         }
         FileCacheVersion::Latest => {
-            // value["status"] = json!({
-            //     "resource": "active",
-            //     "lastDownload": "success"
-            // });
             serde_json::from_value::<FileCacheLatest>(value).map_err(FileCacheError::SerdeJson)
         }
     }

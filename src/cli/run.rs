@@ -1,4 +1,6 @@
 use clap::{builder::EnumValueParser, Arg, ArgAction, Command, ValueEnum};
+use owo_colors::OwoColorize;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct CliSharedOptions {
@@ -10,22 +12,8 @@ pub struct CliSharedOptions {
 }
 
 #[derive(Debug)]
-pub struct CliUserCommand {
-    pub username: String,
-    pub options: CliSharedOptions,
-}
-
-#[derive(Debug)]
-pub struct CliSearchCommand {
-    pub term: String,
-    pub category: RedditCategoryFilter,
-    pub timeframe: RedditTimeframeFilter,
-    pub options: CliSharedOptions,
-}
-
-#[derive(Debug)]
-pub struct CliSubredditCommand {
-    pub subreddit: String,
+pub struct CliRedditCommand {
+    pub resource: String,
     pub category: RedditCategoryFilter,
     pub timeframe: RedditTimeframeFilter,
     pub options: CliSharedOptions,
@@ -33,9 +21,9 @@ pub struct CliSubredditCommand {
 
 #[derive(Debug)]
 pub enum CliCommand {
-    User(CliUserCommand),
-    Search(CliSearchCommand),
-    Subreddit(CliSubredditCommand),
+    User(CliRedditCommand),
+    Search(CliRedditCommand),
+    Subreddit(CliRedditCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum)]
@@ -44,6 +32,20 @@ pub enum RedditCategoryFilter {
     New,
     Top,
     Rising,
+    Controversial,
+}
+
+impl fmt::Display for RedditCategoryFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let category_str = match self {
+            RedditCategoryFilter::Hot => "hot",
+            RedditCategoryFilter::New => "new",
+            RedditCategoryFilter::Top => "top",
+            RedditCategoryFilter::Rising => "rising",
+            RedditCategoryFilter::Controversial => "controversial",
+        };
+        write!(f, "{}", category_str)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum)]
@@ -54,6 +56,20 @@ pub enum RedditTimeframeFilter {
     Month,
     Year,
     All,
+}
+
+impl fmt::Display for RedditTimeframeFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let timeframe_str = match self {
+            RedditTimeframeFilter::Hour => "hour".to_string(),
+            RedditTimeframeFilter::Day => "day".to_string(),
+            RedditTimeframeFilter::Week => "week".to_string(),
+            RedditTimeframeFilter::Month => "month".to_string(),
+            RedditTimeframeFilter::Year => "year".to_string(),
+            RedditTimeframeFilter::All => "all".to_string(),
+        };
+        write!(f, "{}", timeframe_str)
+    }
 }
 
 pub fn run() -> CliCommand {
@@ -99,50 +115,75 @@ pub fn run() -> CliCommand {
         .subcommand(
             Command::new("user")
                 .about("Download posts from a specific user")
-                .arg(Arg::new("username").required(true).index(1))
-                .args(shared_args.clone()),
-        )
-        .subcommand(
-            Command::new("search")
-                .about("Download posts from a specific search term")
-                .arg(Arg::new("search").required(true).index(1))
+                .arg(Arg::new("resource").required(true).index(1))
                 .arg(
                     Arg::new("category")
                         .long("category")
-                        .long_help("category for posts")
-                        .value_name("hot|new|top|rising")
+                        .long_help("Category for posts")
+                        .value_name("hot|new|rising|top|controversial")
                         .value_parser(EnumValueParser::<RedditCategoryFilter>::new())
                         .required(true),
                 )
                 .arg(
                     Arg::new("timeframe")
                         .long("timeframe")
-                        .long_help("Timeframe for posts")
+                        .long_help(
+                            "Timeframe for posts - needed when using category top|controversial",
+                        )
                         .value_name("hour|day|week|month|year|all")
                         .value_parser(EnumValueParser::<RedditTimeframeFilter>::new())
+                        .required_if_eq("category", "top")
+                        .required_if_eq("category", "controversial"),
+                )
+                .args(shared_args.clone()),
+        )
+        .subcommand(
+            Command::new("search")
+                .about("Download posts from a specific search term")
+                .arg(Arg::new("resource").required(true).index(1))
+                .arg(
+                    Arg::new("category")
+                        .long("category")
+                        .long_help("Category for posts")
+                        .value_name("hot|new|rising|top|controversial")
+                        .value_parser(EnumValueParser::<RedditCategoryFilter>::new())
                         .required(true),
+                )
+                .arg(
+                    Arg::new("timeframe")
+                        .long("timeframe")
+                        .long_help(
+                            "Timeframe for posts - needed when using category top|controversial",
+                        )
+                        .value_name("hour|day|week|month|year|all")
+                        .value_parser(EnumValueParser::<RedditTimeframeFilter>::new())
+                        .required_if_eq("category", "top")
+                        .required_if_eq("category", "controversial"),
                 )
                 .args(shared_args.clone()),
         )
         .subcommand(
             Command::new("subreddit")
                 .about("Download posts from a specific subreddit")
-                .arg(Arg::new("subreddit").required(true).index(1))
+                .arg(Arg::new("resource").required(true).index(1))
                 .arg(
                     Arg::new("category")
                         .long("category")
-                        .long_help("category for posts")
-                        .value_name("hot|new|top|rising")
+                        .long_help("Category for posts")
+                        .value_name("hot|new|rising|top|controversial")
                         .value_parser(EnumValueParser::<RedditCategoryFilter>::new())
                         .required(true),
                 )
                 .arg(
                     Arg::new("timeframe")
                         .long("timeframe")
-                        .long_help("Timeframe for posts")
+                        .long_help(
+                            "Timeframe for posts - needed when using category top|controversial",
+                        )
                         .value_name("hour|day|week|month|year|all")
                         .value_parser(EnumValueParser::<RedditTimeframeFilter>::new())
-                        .required(true),
+                        .required_if_eq("category", "top")
+                        .required_if_eq("category", "controversial"),
                 )
                 .args(shared_args.clone()),
         );
@@ -165,35 +206,65 @@ pub fn run() -> CliCommand {
         }
     };
 
+    let get_inputs = |m: &clap::ArgMatches| -> (
+        String,
+        RedditCategoryFilter,
+        RedditTimeframeFilter,
+        CliSharedOptions,
+    ) {
+        let resource = m.get_one::<String>("resource").unwrap().to_string();
+        let category = m
+            .get_one::<RedditCategoryFilter>("category")
+            .unwrap()
+            .to_owned();
+
+        let timeframe = match category {
+            RedditCategoryFilter::Hot
+            | RedditCategoryFilter::New
+            | RedditCategoryFilter::Rising => {
+                let category = category.to_string();
+                if let Some(tf) = m.get_one::<RedditTimeframeFilter>("timeframe") {
+                    println!(
+                        "Unncessary timeframe {} for category {} provided - ignoring",
+                        tf.bold(),
+                        category.bold()
+                    );
+                };
+                RedditTimeframeFilter::All
+            }
+            _ => m
+                .get_one::<RedditTimeframeFilter>("timeframe")
+                .unwrap()
+                .to_owned(),
+        };
+
+        let shared_options = get_shared_options(m);
+        (resource, category, timeframe, shared_options)
+    };
+
     match matches.subcommand() {
         Some(("user", m)) => {
-            let username = m.get_one::<String>("username").unwrap().to_string();
-            let shared_options = get_shared_options(m);
-
-            CliCommand::User(CliUserCommand {
-                username,
+            let (resource, category, timeframe, shared_options)= get_inputs(m);
+            CliCommand::User(CliRedditCommand {
+                resource,
+                category,
+                timeframe,
                 options: shared_options
             })
         }
         Some(("subreddit", m)) => {
-            let subreddit = m.get_one::<String>("subreddit").unwrap().to_string();
-            let category = m.get_one::<RedditCategoryFilter>("category").unwrap().to_owned();
-            let timeframe = m.get_one::<RedditTimeframeFilter>("timeframe").unwrap().to_owned();
-            let shared_options = get_shared_options(m);
-            CliCommand::Subreddit(CliSubredditCommand {
-                subreddit,
+            let (resource, category, timeframe, shared_options)= get_inputs(m);
+            CliCommand::Subreddit(CliRedditCommand {
+                resource,
                 category,
                 timeframe,
                 options: shared_options
             })
         }
         Some(("search", m)) => {
-            let search = m.get_one::<String>("search").unwrap().to_string();
-            let category = m.get_one::<RedditCategoryFilter>("category").unwrap().to_owned();
-            let timeframe = m.get_one::<RedditTimeframeFilter>("timeframe").unwrap().to_owned();
-            let shared_options = get_shared_options(m);
-            CliCommand::Search(CliSearchCommand {
-                term: search,
+            let (resource, category, timeframe, shared_options)= get_inputs(m);
+            CliCommand::Search(CliRedditCommand {
+                resource,
                 category,
                 timeframe,
                 options: shared_options

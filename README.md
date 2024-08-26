@@ -8,6 +8,9 @@ Install the following dependencies:
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 
+
+## Commands
+
 You can see all available commands by running:
 
 ```sh
@@ -16,19 +19,22 @@ You can see all available commands by running:
 
 By default, the tool will download posts to the `output/{subcommand}/{value}` folder 
 
-Download posts from `/u/spez` with spawning `50` tasks emitting to `./downloads`:
+### User
+Crawls posts from `/u/spez` with spawning `50` tasks to `./downloads/user/spez`:
 
 ```sh
-./reddit_clawler user spez --tasks 50 -o ./hello
+./reddit_clawler user spez  --category new --tasks 50 -o ./downloads
 ```
 
-Download posts from `/r/redpandas` from the `top` category, filtered by `hour`:
+### Subreddit 
+Crawls posts from `/r/redpandas` from the `top` category, filtered by `hour`:
 
 ```sh
 ./reddit_clawler subreddit redpandas --category top --timeframe hour
 ```
 
-Download posts for search term `olympics` from the `top` category, filtered by `hour`:
+### Search 
+Crawls posts for search term `olympics` from the `top` category, filtered by `hour`:
 
 ```sh
 ./reddit_clawler search olympics --category top --timeframe hour
@@ -38,20 +44,15 @@ Download posts for search term `olympics` from the `top` category, filtered by `
 
 ### Providers (these are the most common I found):
 
-- [x] Reddit Images
-- [x] Reddit Videos
-- [x] Reddit Galleries
-- [x] Imgur Images
-- [x] Imgur Videos
+- [x] Reddit Media
+- [x] Imgur Media
 - [x] YouTube Videos
 - [x] Redgifs Videos
 
 ### Caching
 
 After the downloads have finished, a `cache.json` file will be created in the folder of the downloaded resource.
-This file keeps track of the posts you have already downloaded and skips them on subsequent runs.
-
-*Note:* Crawling user posts checks the cache to determine if fetching can be aborted early to prevent rate limiting.
+This file keeps track of the posts you have already downloaded and skips downloading them on subsequent runs.
 
 ### File format
 

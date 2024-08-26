@@ -17,11 +17,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cli_request = cli::run();
 
     // Create client and state that is shared between tokio tasks
-    // Retries up to 10 times with increasing intervals between attempts
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(8);
-    let client = ClientBuilder::new(reqwest::Client::new())
-        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-        .build();
+    // Retries up to 3 times with increasing intervals between attempts
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+
+    let user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36";
+    let client = ClientBuilder::new(
+        reqwest::Client::builder()
+            .user_agent(user_agent)
+            .build()
+            .unwrap(),
+    )
+    .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+    .build();
 
     // Shared state between tokio tasks e.g. caching an authorization token
     let shared_state: Arc<Mutex<SharedState>> = Arc::new(Mutex::new(SharedState::default()));

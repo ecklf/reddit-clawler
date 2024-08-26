@@ -47,26 +47,6 @@ impl Default for RedditClient {
 }
 
 impl RedditClient {
-    fn get_category_str(&self, category: &RedditCategoryFilter) -> String {
-        match category {
-            RedditCategoryFilter::Hot => "hot".to_string(),
-            RedditCategoryFilter::New => "new".to_string(),
-            RedditCategoryFilter::Top => "top".to_string(),
-            RedditCategoryFilter::Rising => "rising".to_string(),
-        }
-    }
-
-    fn get_timeframe_str(&self, timeframe: &RedditTimeframeFilter) -> String {
-        match timeframe {
-            RedditTimeframeFilter::Hour => "hour".to_string(),
-            RedditTimeframeFilter::Day => "day".to_string(),
-            RedditTimeframeFilter::Week => "week".to_string(),
-            RedditTimeframeFilter::Month => "month".to_string(),
-            RedditTimeframeFilter::Year => "year".to_string(),
-            RedditTimeframeFilter::All => "all".to_string(),
-        }
-    }
-
     fn gen_user_submitted_url(
         &self,
         user: &str,
@@ -74,8 +54,8 @@ impl RedditClient {
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
     ) -> String {
-        let category = self.get_category_str(category);
-        let timeframe = self.get_timeframe_str(timeframe);
+        let category = category.to_string();
+        let timeframe = timeframe.to_string();
 
         match after {
             Some(after) => format!(
@@ -198,8 +178,8 @@ impl RedditClient {
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
     ) -> String {
-        let category = self.get_category_str(category);
-        let timeframe = self.get_timeframe_str(timeframe);
+        let category = category.to_string();
+        let timeframe = timeframe.to_string();
 
         match after {
             Some(after) => format!(
@@ -288,8 +268,8 @@ impl RedditClient {
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
     ) -> String {
-        let category = self.get_category_str(category);
-        let timeframe = self.get_timeframe_str(timeframe);
+        let category = category.to_string();
+        let timeframe = timeframe.to_string();
 
         match after {
             Some(after) => format!(

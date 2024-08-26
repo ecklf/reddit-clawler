@@ -1,7 +1,7 @@
 [package]
 name = "reddit_clawler"
 description = "Reddit media crawler"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license-file = "LICENSE.md"
 keywords = ["reddit", "scraper", "crawler"]
@@ -16,16 +16,16 @@ clap = { version = "4.4.11", features = ["color", "derive"] }
 filetime = "0.2.23"
 indicatif = "0.17.7"
 lazy_static = "1.4.0"
-owo-colors = "3.5.0"
+owo-colors = "4.0.0"
 regex = "1.10.2"
-reqwest = { version = "0.11.22", features = ["json"] }
-reqwest-middleware = "0.2.4"
-reqwest-retry = "0.3.0"
-serde = { version = "1.0.193", features = ["derive"] }
-serde_json = "1.0.68"
+reqwest = { version = "0.12.7", features = ["json"] }
+reqwest-middleware = "0.3.3"
+reqwest-retry = "0.6.1"
+serde = { version = "1.0.209", features = ["derive"] }
+serde_json = "1.0.127"
 spinoff = { version = "0.8.0", features = ["dots"] }
-thiserror = "1.0.50"
-tokio = { version = "1.35.0", features = ["macros", "rt-multi-thread"] }
+thiserror = "1.0.63"
+tokio = { version = "1.39.3", features = ["macros", "rt-multi-thread"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

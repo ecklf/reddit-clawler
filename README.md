@@ -58,7 +58,7 @@ This file keeps track of the posts you have already downloaded and skips downloa
 
 Querying posts is paginated (100 items per requests) and can lead to rate limiting.
 To avoid this, you can provide a `--limit` flag to limit the number of requests for fetching a resource.
-This can be useful for subsequent crawling for resource.
+This can be useful for subsequent crawling.
 
 ### File format
 

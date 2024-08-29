@@ -25,10 +25,9 @@ pub async fn handle_search_command(
     shared_state: &Arc<Mutex<SharedState>>,
 ) -> Result<(), Box<dyn Error>> {
     let CliRedditCommand {
-        resource: search_term,
-        options,
-        category,
-        timeframe,
+        resource: ref search_term,
+        ref options,
+        ..
     } = cmd;
 
     let (tx, mut rx) = oneshot::channel::<bool>();
@@ -61,7 +60,7 @@ pub async fn handle_search_command(
         ss.file_cache = file_cache.clone();
     }
 
-    let responses = match options.mock {
+    let responses = match &options.mock {
         Some(mock_file) => {
             println!(
                 "{}",
@@ -76,7 +75,7 @@ pub async fn handle_search_command(
         }
         _ => {
             let response = reddit_client
-                .get_search_submissions(client, shared_state, &search_term, &category, &timeframe)
+                .get_search_submissions(client, shared_state, &cmd, options)
                 .await;
 
             match response {

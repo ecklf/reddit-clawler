@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    cli::{RedditCategoryFilter, RedditTimeframeFilter},
+    cli::{CliRedditCommand, CliSharedOptions, RedditCategoryFilter, RedditTimeframeFilter},
     clients::api_types::reddit::{
         submitted_response::RedditSubmittedResponse, user_about::RedditUserAbout,
     },
@@ -101,12 +101,21 @@ impl RedditClient {
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
         shared_state: &Arc<Mutex<SharedState>>,
-        user: &str,
-        category: &RedditCategoryFilter,
-        timeframe: &RedditTimeframeFilter,
+        cmd: &CliRedditCommand,
+        options: &CliSharedOptions,
     ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
         let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
         let mut after: Option<String> = None;
+        let mut request_count: u32 = 0;
+
+        let CliRedditCommand {
+            resource: user,
+            category,
+            timeframe,
+            ..
+        } = cmd;
+
+        let CliSharedOptions { limit, .. } = options;
 
         loop {
             let url = match after {
@@ -158,8 +167,15 @@ impl RedditClient {
                 responses.push(res.to_owned());
             }
 
+            request_count += 1;
             match res.data.after {
                 Some(a) => {
+                    // Skip downloading if limit is reached
+                    if let Some(l) = limit {
+                        if request_count >= *l {
+                            break;
+                        }
+                    }
                     after = Some(a);
                 }
                 None => {
@@ -197,12 +213,21 @@ impl RedditClient {
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
         shared_state: &Arc<Mutex<SharedState>>,
-        subreddit: &str,
-        category: &RedditCategoryFilter,
-        timeframe: &RedditTimeframeFilter,
+        cmd: &CliRedditCommand,
+        options: &CliSharedOptions,
     ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
         let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
         let mut after: Option<String> = None;
+        let mut request_count: u32 = 0;
+
+        let CliRedditCommand {
+            resource: subreddit,
+            category,
+            timeframe,
+            ..
+        } = cmd;
+
+        let CliSharedOptions { limit, .. } = options;
 
         loop {
             let url = match after {
@@ -248,8 +273,15 @@ impl RedditClient {
                 responses.push(res.to_owned());
             }
 
+            request_count += 1;
             match res.data.after {
                 Some(a) => {
+                    // Skip downloading if limit is reached
+                    if let Some(l) = limit {
+                        if request_count >= *l {
+                            break;
+                        }
+                    }
                     after = Some(a);
                 }
                 None => {
@@ -287,12 +319,21 @@ impl RedditClient {
         &self,
         client: &reqwest_middleware::ClientWithMiddleware,
         shared_state: &Arc<Mutex<SharedState>>,
-        term: &str,
-        category: &RedditCategoryFilter,
-        timeframe: &RedditTimeframeFilter,
+        cmd: &CliRedditCommand,
+        options: &CliSharedOptions,
     ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
         let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
         let mut after: Option<String> = None;
+        let mut request_count: u32 = 0;
+
+        let CliRedditCommand {
+            resource: term,
+            category,
+            timeframe,
+            ..
+        } = cmd;
+
+        let CliSharedOptions { limit, .. } = options;
 
         loop {
             let url = match after {
@@ -336,8 +377,15 @@ impl RedditClient {
                 responses.push(res.to_owned());
             }
 
+            request_count += 1;
             match res.data.after {
                 Some(a) => {
+                    // Skip downloading if limit is reached
+                    if let Some(l) = limit {
+                        if request_count >= *l {
+                            break;
+                        }
+                    }
                     after = Some(a);
                 }
                 None => {

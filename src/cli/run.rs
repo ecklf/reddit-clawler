@@ -9,6 +9,7 @@ pub struct CliSharedOptions {
     pub output: String,
     pub skip: bool,
     pub verbose: bool,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -98,6 +99,13 @@ pub fn run() -> CliCommand {
             .value_name("tasks")
             .value_parser(clap::value_parser!(u16).range(1..=100))
             .default_value("10")
+            .action(clap::ArgAction::Set),
+        Arg::new("limit")
+            .short('l')
+            .long("limit")
+            .long_help("Limit of fetch requests")
+            .value_name("limit")
+            .value_parser(clap::value_parser!(u32))
             .action(clap::ArgAction::Set),
         Arg::new("output")
             .short('o')
@@ -196,6 +204,7 @@ pub fn run() -> CliCommand {
         let output = m.get_one::<String>("output").unwrap().to_owned();
         let skip = m.get_one::<bool>("skip").unwrap().to_owned();
         let verbose = m.get_one::<bool>("verbose").unwrap().to_owned();
+        let limit = m.get_one::<u32>("limit").copied();
 
         CliSharedOptions {
             concurrency,
@@ -203,6 +212,7 @@ pub fn run() -> CliCommand {
             output,
             skip,
             verbose,
+            limit,
         }
     };
 
@@ -244,30 +254,30 @@ pub fn run() -> CliCommand {
 
     match matches.subcommand() {
         Some(("user", m)) => {
-            let (resource, category, timeframe, shared_options)= get_inputs(m);
+            let (resource, category, timeframe, options)= get_inputs(m);
             CliCommand::User(CliRedditCommand {
                 resource,
                 category,
                 timeframe,
-                options: shared_options
+                options
             })
         }
         Some(("subreddit", m)) => {
-            let (resource, category, timeframe, shared_options)= get_inputs(m);
+            let (resource, category, timeframe, options)= get_inputs(m);
             CliCommand::Subreddit(CliRedditCommand {
                 resource,
                 category,
                 timeframe,
-                options: shared_options
+                options
             })
         }
         Some(("search", m)) => {
-            let (resource, category, timeframe, shared_options)= get_inputs(m);
+            let (resource, category, timeframe, options)= get_inputs(m);
             CliCommand::Search(CliRedditCommand {
                 resource,
                 category,
                 timeframe,
-                options: shared_options
+                options
             })
         }
         _ => unreachable!(

@@ -26,10 +26,9 @@ pub async fn handle_user_command(
     shared_state: &Arc<Mutex<SharedState>>,
 ) -> Result<(), Box<dyn Error>> {
     let CliRedditCommand {
-        resource: username,
-        options,
-        category,
-        timeframe,
+        resource: ref username,
+        ref options,
+        ..
     } = cmd;
 
     let (tx, mut rx) = oneshot::channel::<bool>();
@@ -79,7 +78,7 @@ pub async fn handle_user_command(
         }
     }
 
-    let responses = match options.mock {
+    let responses = match &options.mock {
         Some(mock_file) => {
             println!(
                 "{}",
@@ -94,7 +93,7 @@ pub async fn handle_user_command(
         }
         _ => {
             let response = reddit_client
-                .get_user_submissions(client, shared_state, &username, &category, &timeframe)
+                .get_user_submissions(client, shared_state, &cmd, options)
                 .await;
 
             match response {

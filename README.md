@@ -54,6 +54,12 @@ Crawls posts for search term `olympics` from the `top` category, filtered by `ho
 After the downloads have finished, a `cache.json` file will be created in the folder of the downloaded resource.
 This file keeps track of the posts you have already downloaded and skips downloading them on subsequent runs.
 
+### Rate limiting
+
+Querying posts is paginated (100 items per requests) and can lead to rate limiting.
+To avoid this, you can provide a `--limit` flag to limit the number of requests for fetching a resource.
+This can be useful for subsequent crawling for resource.
+
 ### File format
 
 By default it will prefer `mp4` over `gif`, if available.

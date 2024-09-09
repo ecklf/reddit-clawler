@@ -145,6 +145,10 @@ pub async fn download_redgifs_media(
             .split("/watch/")
             .last()
             .ok_or(RedgifsClientError::ExtractionFailed)?,
+        _ if url.contains("redgifs.com/ifr/") => url
+            .split("/ifr/")
+            .last()
+            .ok_or(RedgifsClientError::ExtractionFailed)?,
         _ => return Err(RedgifsClientError::ExtractionFailed),
     };
 

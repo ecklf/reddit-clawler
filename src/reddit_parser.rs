@@ -226,7 +226,6 @@ impl RedditPostParser {
                             .collect::<Vec<_>>();
                     }
                 }
-
                 // Handle Reddit posts with mp4
                 if let Some(media_metadata) = media_metadata {
                     let media_ids = media_metadata.keys().collect::<Vec<&String>>();
@@ -257,7 +256,6 @@ impl RedditPostParser {
                         })
                         .collect::<Vec<_>>();
                 }
-
                 // Handle YouTube embeds
                 if let Some(m) = media {
                     match &m.type_field {
@@ -280,7 +278,6 @@ impl RedditPostParser {
                         _ => {}
                     }
                 }
-
                 // Handle Redgifs images
                 if data.url.contains("redgifs.com/i/") {
                     return vec![
@@ -298,9 +295,9 @@ impl RedditPostParser {
                         }),
                     ];
                 }
-
                 // Handle Redgifs video embeds
-                if data.url.contains("redgifs.com/watch/") {
+                if data.url.contains("redgifs.com/watch/") || data.url.contains("redgifs.com/ifr/")
+                {
                     return vec![
                         (RedditCrawlerPost {
                             author: author.to_owned(),
@@ -316,11 +313,9 @@ impl RedditPostParser {
                         }),
                     ];
                 }
-
                 // Handle Imgur embeds
                 if data.url.contains("imgur") {
                     let extension: String = data.url.split('.').rev().take(1).collect();
-
                     return vec![
                         (RedditCrawlerPost {
                             author: author.to_owned(),

@@ -59,11 +59,11 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort={}&t={}&after={}&raw_json=1",
+                "https://www.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&after={}&raw_json=1",
                 user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST, after
             ),
             None => format!(
-                "https://www.reddit.com/user/{}/submitted.json?limit={}&sort={}&t={}&raw_json=1",
+                "https://www.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&raw_json=1",
                 user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST
             ),
         }
@@ -199,11 +199,11 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://www.reddit.com/r/{}/{}.json?limit=100&t={}&after={}&raw_json=1",
+                "https://www.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&after={}&raw_json=1",
                 subreddit, category, timeframe, after
             ),
             None => format!(
-                "https://www.reddit.com/r/{}/{}.json?limit=100&t={}&raw_json=1",
+                "https://www.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&raw_json=1",
                 subreddit, category, timeframe
             ),
         }

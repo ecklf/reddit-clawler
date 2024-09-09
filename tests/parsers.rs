@@ -152,3 +152,25 @@ fn it_detects_redgifs_video() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn it_detects_redgifs_video_iframe() -> Result<(), Box<dyn Error>> {
+    let data =
+        fs::read_to_string("./tests/mocks/reddit/submitted_response/redgifs_video_iframe.json")?;
+    let responses: Vec<RedditSubmittedResponse> = serde_json::from_str(&data)?;
+    let res = responses
+        .first()
+        .ok_or("Expected mockfile to contain a RedditUserSubmittedResponse")?;
+
+    let post_parser = RedditPostParser::default();
+    let parsed_posts = post_parser.parse(res);
+
+    assert_eq!(parsed_posts.len(), 1);
+
+    for mt in parsed_posts.iter() {
+        let RedditCrawlerPost { provider, .. } = mt;
+        assert_eq!(provider, &RedditMediaProviderType::RedgifsVideo);
+    }
+
+    Ok(())
+}

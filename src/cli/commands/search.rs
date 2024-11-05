@@ -257,9 +257,7 @@ pub async fn handle_search_command(
 
     let ss = &shared_state.lock().await;
     let cache = serde_json::to_string(&ss.file_cache)?;
-    if let Some(file_cache_path) = &ss.file_cache_path {
-        fs::write(file_cache_path, cache)?;
-    }
+    fs::write(file_cache_path, cache)?;
 
     Ok(())
 }

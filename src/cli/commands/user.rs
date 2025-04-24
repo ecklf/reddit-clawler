@@ -60,8 +60,9 @@ pub async fn handle_user_command(
         ss.file_cache_path = Some(file_cache_path.clone());
         ss.file_cache = file_cache.clone();
 
-        if file_cache.status.resource == ResourceStatus::Deleted
-            || file_cache.status.resource == ResourceStatus::Suspended
+        if !options.force
+            && (file_cache.status.resource == ResourceStatus::Deleted
+                || file_cache.status.resource == ResourceStatus::Suspended)
         {
             let issue = match file_cache.status.resource {
                 ResourceStatus::Deleted => "deleted",

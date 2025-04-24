@@ -10,6 +10,7 @@ pub struct CliSharedOptions {
     pub skip: bool,
     pub verbose: bool,
     pub limit: Option<u32>,
+    pub force: bool,
 }
 
 #[derive(Debug)]
@@ -107,6 +108,13 @@ pub fn run() -> CliCommand {
             .value_name("limit")
             .value_parser(clap::value_parser!(u32))
             .action(clap::ArgAction::Set),
+        Arg::new("force")
+            .short('f')
+            .long("force")
+            .long_help("Force download of posts")
+            .value_name("force")
+            .action(clap::ArgAction::SetTrue)
+            .required(false),
         Arg::new("output")
             .short('o')
             .long("output")
@@ -205,6 +213,7 @@ pub fn run() -> CliCommand {
         let skip = m.get_one::<bool>("skip").unwrap().to_owned();
         let verbose = m.get_one::<bool>("verbose").unwrap().to_owned();
         let limit = m.get_one::<u32>("limit").copied();
+        let force = m.get_one::<bool>("force").unwrap().to_owned();
 
         CliSharedOptions {
             concurrency,
@@ -213,6 +222,7 @@ pub fn run() -> CliCommand {
             skip,
             verbose,
             limit,
+            force,
         }
     };
 

@@ -100,6 +100,7 @@ pub async fn handle_user_command(
             match response {
                 Ok(responses) => {
                     let mut ss = shared_state.lock().await;
+                    ss.file_cache.status.resource = ResourceStatus::Active;
                     ss.file_cache.status.last_download = LastDownloadStatus::Success;
                     fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                     responses

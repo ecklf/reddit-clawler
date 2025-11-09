@@ -118,20 +118,20 @@ pub struct RedditVideo {
     #[serde(rename = "bitrate_kbps")]
     pub bitrate_kbps: Option<i64>,
     #[serde(rename = "fallback_url")]
-    pub fallback_url: String,
-    pub height: i64,
-    pub width: i64,
+    pub fallback_url: Option<String>,
+    pub height: Option<i64>,
+    pub width: Option<i64>,
     #[serde(rename = "scrubber_media_url")]
-    pub scrubber_media_url: String,
+    pub scrubber_media_url: Option<String>,
     #[serde(rename = "dash_url")]
-    pub dash_url: String,
-    pub duration: i64,
+    pub dash_url: Option<String>,
+    pub duration: Option<i64>,
     #[serde(rename = "hls_url")]
-    pub hls_url: String,
+    pub hls_url: Option<String>,
     #[serde(rename = "is_gif")]
-    pub is_gif: bool,
+    pub is_gif: Option<bool>,
     #[serde(rename = "transcoding_status")]
-    pub transcoding_status: String,
+    pub transcoding_status: Option<String>,
     #[serde(rename = "has_audio")]
     pub has_audio: Option<bool>,
 }

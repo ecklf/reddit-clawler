@@ -153,15 +153,18 @@ impl RedditClient {
             let mut res: RedditSubmittedResponse =
                 res.json().await.map_err(RedditProviderError::Reqwest)?;
 
-            let file_cache = &shared_state.lock().await.file_cache;
+            // Skip filtering in update mode to get all posts for cache refresh
+            if !options.update {
+                let file_cache = &shared_state.lock().await.file_cache;
 
-            let non_downloaded = res
-                .data
-                .children
-                .into_iter()
-                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
-                .collect::<Vec<_>>();
-            res.data.children = non_downloaded;
+                let non_downloaded = res
+                    .data
+                    .children
+                    .into_iter()
+                    .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
+                    .collect::<Vec<_>>();
+                res.data.children = non_downloaded;
+            }
 
             if !res.data.children.is_empty() {
                 responses.push(res.to_owned());
@@ -259,15 +262,18 @@ impl RedditClient {
             let mut res: RedditSubmittedResponse =
                 res.json().await.map_err(RedditProviderError::Reqwest)?;
 
-            let file_cache = &shared_state.lock().await.file_cache;
+            // Skip filtering in update mode to get all posts for cache refresh
+            if !options.update {
+                let file_cache = &shared_state.lock().await.file_cache;
 
-            let non_downloaded = res
-                .data
-                .children
-                .into_iter()
-                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
-                .collect::<Vec<_>>();
-            res.data.children = non_downloaded;
+                let non_downloaded = res
+                    .data
+                    .children
+                    .into_iter()
+                    .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
+                    .collect::<Vec<_>>();
+                res.data.children = non_downloaded;
+            }
 
             if !res.data.children.is_empty() {
                 responses.push(res.to_owned());
@@ -363,15 +369,18 @@ impl RedditClient {
             let mut res: RedditSubmittedResponse =
                 res.json().await.map_err(RedditProviderError::Reqwest)?;
 
-            let file_cache = &shared_state.lock().await.file_cache;
+            // Skip filtering in update mode to get all posts for cache refresh
+            if !options.update {
+                let file_cache = &shared_state.lock().await.file_cache;
 
-            let non_downloaded = res
-                .data
-                .children
-                .into_iter()
-                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
-                .collect::<Vec<_>>();
-            res.data.children = non_downloaded;
+                let non_downloaded = res
+                    .data
+                    .children
+                    .into_iter()
+                    .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
+                    .collect::<Vec<_>>();
+                res.data.children = non_downloaded;
+            }
 
             if !res.data.children.is_empty() {
                 responses.push(res.to_owned());

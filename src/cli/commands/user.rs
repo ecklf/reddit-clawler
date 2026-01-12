@@ -156,6 +156,96 @@ pub async fn handle_user_command(
         .flat_map(|r| reddit_parser.parse(r))
         .collect::<Vec<_>>();
 
+    // Update mode: refresh all cache entries with latest metadata (including is_gallery)
+    if options.update {
+        println!(
+            "{}",
+            format_args!(
+                "{} {}",
+                "[FLAG]".green().bold(),
+                "Update mode - refreshing cache metadata".bold()
+            ),
+        );
+
+        let mut ss = shared_state.lock().await;
+        let mut updated_count = 0;
+        let mut new_count = 0;
+
+        if options.verbose {
+            println!("Fetched {} posts from API", posts.len());
+            println!("Current cache has {} entries", ss.file_cache.files.len());
+        }
+
+        for post in &posts {
+            // Find if this post exists in cache
+            if let Some(cached_item) = ss
+                .file_cache
+                .files
+                .iter_mut()
+                .find(|f| f.id == post.id && f.index == post.index)
+            {
+                // Update existing cache entry with fresh metadata
+                cached_item.is_gallery = post.is_gallery;
+                cached_item.title = post.title.clone();
+                cached_item.url = post.url.clone();
+                cached_item.created_utc = post.created_utc;
+                cached_item.subreddit = post.subreddit.clone();
+                cached_item.index = post.index;
+                updated_count += 1;
+            } else {
+                // Add new post to cache (not downloaded)
+                ss.file_cache.files.push(FileCacheItemLatest {
+                    id: post.id.clone(),
+                    created_utc: post.created_utc,
+                    title: post.title.clone(),
+                    subreddit: post.subreddit.clone(),
+                    url: post.url.clone(),
+                    success: false,
+                    index: post.index,
+                    is_gallery: post.is_gallery,
+                });
+                new_count += 1;
+            }
+        }
+
+        // Backfill is_gallery for entries not in API response
+        // If a post has multiple entries with the same ID, it's a gallery
+        let mut backfilled_count = 0;
+        use std::collections::HashMap;
+        let mut id_counts: HashMap<String, usize> = HashMap::new();
+        for file in &ss.file_cache.files {
+            *id_counts.entry(file.id.clone()).or_insert(0) += 1;
+        }
+        
+        for file in &mut ss.file_cache.files {
+            if file.is_gallery.is_none() {
+                // If this post ID has multiple entries, it's a gallery
+                if let Some(&count) = id_counts.get(&file.id) {
+                    if count > 1 {
+                        file.is_gallery = Some(true);
+                        backfilled_count += 1;
+                    } else {
+                        file.is_gallery = Some(false);
+                        backfilled_count += 1;
+                    }
+                }
+            }
+        }
+
+        if options.verbose && backfilled_count > 0 {
+            println!("Backfilled is_gallery for {} older entries", backfilled_count);
+        }
+
+        if let Some(file_cache_path) = &ss.file_cache_path {
+            fs::write(file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+            spinner.success(&format!(
+                "Updated {} cached posts, added {} new posts",
+                updated_count, new_count
+            ));
+        }
+        return Ok(());
+    }
+
     let mut posts_to_download = posts.clone();
 
     if Path::new(&file_cache_path).exists() {
@@ -168,7 +258,7 @@ pub async fn handle_user_command(
                     .file_cache
                     .files
                     .iter()
-                    .any(|f| p.id == f.id && f.success);
+                    .any(|f| p.id == f.id && p.index == f.index && f.success);
                 !found
             })
             .collect::<Vec<_>>();
@@ -240,6 +330,7 @@ pub async fn handle_user_command(
                                     url: post.url.clone(),
                                     success: true,
                                     index: post.index,
+                                    is_gallery: post.is_gallery,
                                 });
 
                             dp_clone.lock().await.update_progress(
@@ -262,6 +353,7 @@ pub async fn handle_user_command(
                                     url: post.url.clone(),
                                     success: false,
                                     index: post.index,
+                                    is_gallery: post.is_gallery,
                                 });
                             let mut dl_stats = ds_clone.lock().await;
                             dl_stats.downloads_failed += 1;

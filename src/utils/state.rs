@@ -14,7 +14,8 @@ pub struct DownloadStats {
 #[derive(Default, Copy, Debug, Clone, PartialEq)]
 pub enum FileCacheVersion {
     #[default]
-    Latest = 2,
+    Latest = 3,
+    V2 = 2,
     V1 = 1,
 }
 
@@ -25,7 +26,8 @@ impl Serialize for FileCacheVersion {
     {
         match self {
             FileCacheVersion::V1 => serializer.serialize_i64(1),
-            FileCacheVersion::Latest => serializer.serialize_i64(2),
+            FileCacheVersion::V2 => serializer.serialize_i64(2),
+            FileCacheVersion::Latest => serializer.serialize_i64(3),
         }
     }
 }
@@ -38,7 +40,8 @@ impl<'de> Deserialize<'de> for FileCacheVersion {
         let version = i64::deserialize(deserializer)?;
         match version {
             1 => Ok(FileCacheVersion::V1),
-            2 => Ok(FileCacheVersion::Latest),
+            2 => Ok(FileCacheVersion::V2),
+            3 => Ok(FileCacheVersion::Latest),
             _ => Err(serde::de::Error::custom(format!(
                 "Invalid version: {}",
                 version
@@ -48,7 +51,6 @@ impl<'de> Deserialize<'de> for FileCacheVersion {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PartialFileCache {
     pub version: FileCacheVersion,
 }
@@ -97,6 +99,8 @@ pub struct FileCacheItemLatest {
     pub url: String,
     pub success: bool,
     pub index: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_gallery: Option<bool>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -113,9 +117,29 @@ pub struct FileCacheItemV1 {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FileCacheItemV2 {
+    pub id: String,
+    pub created_utc: DateTime<Utc>,
+    pub title: String,
+    pub subreddit: String,
+    pub url: String,
+    pub success: bool,
+    pub index: Option<usize>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileCacheV1 {
     pub version: FileCacheVersion,
     pub files: Vec<FileCacheItemV1>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileCacheV2 {
+    pub version: FileCacheVersion,
+    pub status: FileCacheStatus,
+    pub files: Vec<FileCacheItemV2>,
 }
 
 #[derive(Error, Debug)]
@@ -134,14 +158,21 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
 
     match version {
         FileCacheVersion::V1 => {
-            value["version"] = serde_json::to_value(FileCacheVersion::Latest)
-                .map_err(FileCacheError::SerdeJson)?;
+            value["version"] =
+                serde_json::to_value(FileCacheVersion::V2).map_err(FileCacheError::SerdeJson)?;
 
             value["status"] = serde_json::to_value(FileCacheStatus {
                 resource: ResourceStatus::Active,
                 last_download: LastDownloadStatus::Success,
             })
             .map_err(FileCacheError::SerdeJson)?;
+            get_cache_from_serde_value(value)
+        }
+        FileCacheVersion::V2 => {
+            value["version"] = serde_json::to_value(FileCacheVersion::Latest)
+                .map_err(FileCacheError::SerdeJson)?;
+
+            // V2 to V3 migration - is_gallery field is optional, so no changes needed
             get_cache_from_serde_value(value)
         }
         FileCacheVersion::Latest => {

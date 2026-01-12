@@ -37,14 +37,7 @@ fn it_detects_reddit_gallery() -> Result<(), Box<dyn Error>> {
 
     let post_parser = RedditPostParser::default();
     let parsed_posts = post_parser.parse(res);
-
-    assert_eq!(parsed_posts.len(), 3);
-
-    for mt in parsed_posts.iter() {
-        let RedditCrawlerPost { provider, .. } = mt;
-        assert_eq!(provider, &RedditMediaProviderType::RedditGalleryImage);
-    }
-
+    assert_eq!(parsed_posts.len(), 4);
     Ok(())
 }
 

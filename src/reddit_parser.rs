@@ -59,7 +59,6 @@ impl RedditPostParser {
             is_video,
             ..
         } = data;
-
         // Set to `true` if the post is hosted on Reddit's own media domai.
         // This excludes gallery posts, which is also hosted there?
         match is_reddit_media_domain {
@@ -220,7 +219,20 @@ impl RedditPostParser {
                                                 url: u.to_owned(),
                                             });
                                         }
-
+                                        if let Some(gif) = &s_media.gif {
+                                            return Some(RedditCrawlerPost {
+                                                author: author.to_owned(),
+                                                created_utc: created_utc.to_owned(),
+                                                extension: "gif".to_owned(),
+                                                id: data.id.to_owned(),
+                                                index: Some(i),
+                                                provider: RedditMediaProviderType::RedditGifVideo,
+                                                subreddit: subreddit.to_owned(),
+                                                title: format!("{}-{}", title, i),
+                                                upvotes: upvotes.to_owned(),
+                                                url: gif.to_owned(),
+                                            });
+                                        }
                                         None
                                     })
                                 })

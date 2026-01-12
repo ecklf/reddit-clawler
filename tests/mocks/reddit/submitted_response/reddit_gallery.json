@@ -30,6 +30,52 @@
             "top_awarded_type": null,
             "hide_score": false,
             "media_metadata": {
+              "yuw00w111uk1": {
+                "status": "valid",
+                "e": "AnimatedImage",
+                "m": "image/gif",
+                "o": [
+                  {
+                    "y": 747,
+                    "x": 960,
+                    "u": "https://preview.redd.it/yuw00w111uk1.gif?width=960&amp;blur=40&amp;format=png8&amp;s=24a80c04d030e6aa09697f87239549545fd5ca7f"
+                  }
+                ],
+                "p": [
+                  {
+                    "y": 84,
+                    "x": 108,
+                    "u": "https://preview.redd.it/yuw00w111uk1.gif?width=108&amp;crop=smart&amp;format=png8&amp;s=56d64e6317a6dd1887ccffc38e813ba321289167"
+                  },
+                  {
+                    "y": 168,
+                    "x": 216,
+                    "u": "https://preview.redd.it/yuw00w111uk1.gif?width=216&amp;crop=smart&amp;format=png8&amp;s=cf02a367e3ee32e33d45f16011de5fe5343d96ea"
+                  },
+                  {
+                    "y": 249,
+                    "x": 320,
+                    "u": "https://preview.redd.it/yuw00w111uk1.gif?width=320&amp;crop=smart&amp;format=png8&amp;s=62a6b4d85e50156e3a66129f38d75743b9d28b1a"
+                  },
+                  {
+                    "y": 498,
+                    "x": 640,
+                    "u": "https://preview.redd.it/yuw00w111uk1.gif?width=640&amp;crop=smart&amp;format=png8&amp;s=80816da13b2c7da7b07ba62fb9dfdd38f55074c0"
+                  },
+                  {
+                    "y": 747,
+                    "x": 960,
+                    "u": "https://preview.redd.it/yuw00w111uk1.gif?width=960&amp;crop=smart&amp;format=png8&amp;s=ce60556d943df078309d2173c14fe2fa233e5504"
+                  }
+                ],
+                "s": {
+                  "y": 747,
+                  "gif": "https://i.redd.it/yuw00w111uk1.gif",
+                  "mp4": "https://preview.redd.it/yuw00w111uk1.gif?format=mp4&amp;s=4d55997431563599bf86717596dca9bf203bb88f",
+                  "x": 960
+                },
+                "id": "yuw00w111uk1"
+              },
               "43vpj6nzl55c1": {
                 "status": "valid",
                 "e": "Image",
@@ -144,9 +190,22 @@
             "secure_media_embed": {},
             "gallery_data": {
               "items": [
-                { "media_id": "0w3ha6nzl55c1", "id": 371316723 },
-                { "media_id": "dll626nzl55c1", "id": 371316724 },
-                { "media_id": "43vpj6nzl55c1", "id": 371316725 }
+                {
+                  "media_id": "yuw00w111uk1",
+                  "id": 371316722
+                },
+                {
+                  "media_id": "0w3ha6nzl55c1",
+                  "id": 371316723
+                },
+                {
+                  "media_id": "dll626nzl55c1",
+                  "id": 371316724
+                },
+                {
+                  "media_id": "43vpj6nzl55c1",
+                  "id": 371316725
+                }
               ]
             },
             "link_flair_text": null,

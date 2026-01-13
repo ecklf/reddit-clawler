@@ -11,6 +11,7 @@ pub struct CliSharedOptions {
     pub verbose: bool,
     pub limit: Option<u32>,
     pub force: bool,
+    pub update: bool,
 }
 
 #[derive(Debug)]
@@ -115,6 +116,12 @@ pub fn run() -> CliCommand {
             .value_name("force")
             .action(clap::ArgAction::SetTrue)
             .required(false),
+        Arg::new("update")
+            .short('u')
+            .long("update")
+            .long_help("Update cache only without downloading files")
+            .action(clap::ArgAction::SetTrue)
+            .required(false),
         Arg::new("output")
             .short('o')
             .long("output")
@@ -214,6 +221,7 @@ pub fn run() -> CliCommand {
         let verbose = m.get_one::<bool>("verbose").unwrap().to_owned();
         let limit = m.get_one::<u32>("limit").copied();
         let force = m.get_one::<bool>("force").unwrap().to_owned();
+        let update = m.get_one::<bool>("update").unwrap().to_owned();
 
         CliSharedOptions {
             concurrency,
@@ -223,6 +231,7 @@ pub fn run() -> CliCommand {
             verbose,
             limit,
             force,
+            update,
         }
     };
 

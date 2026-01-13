@@ -153,15 +153,37 @@ impl RedditClient {
             let mut res: RedditSubmittedResponse =
                 res.json().await.map_err(RedditProviderError::Reqwest)?;
 
-            let file_cache = &shared_state.lock().await.file_cache;
+            // Skip filtering in update mode to get all posts for cache refresh
+            if !options.update {
+                let file_cache = &shared_state.lock().await.file_cache;
 
-            let non_downloaded = res
-                .data
-                .children
-                .into_iter()
-                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
-                .collect::<Vec<_>>();
-            res.data.children = non_downloaded;
+                // write res.data.children to out.json for debugging
+                let _ = std::fs::write(
+                    "out.json",
+                    serde_json::to_string_pretty(&res.data.children).unwrap(),
+                );
+
+                // Filter out posts only if ALL items for that post ID are successfully downloaded.
+                // This ensures gallery posts with some failed items are re-fetched.
+                let non_downloaded = res
+                    .data
+                    .children
+                    .into_iter()
+                    .filter(|rc| {
+                        let cached_items: Vec<_> = file_cache
+                            .files
+                            .iter()
+                            .filter(|f| f.id == rc.data.id)
+                            .collect();
+                        
+                        // Keep the post if:
+                        // 1. No items cached for this ID, OR
+                        // 2. Any cached item has success == false
+                        cached_items.is_empty() || cached_items.iter().any(|f| !f.success)
+                    })
+                    .collect::<Vec<_>>();
+                res.data.children = non_downloaded;
+            }
 
             if !res.data.children.is_empty() {
                 responses.push(res.to_owned());
@@ -259,15 +281,31 @@ impl RedditClient {
             let mut res: RedditSubmittedResponse =
                 res.json().await.map_err(RedditProviderError::Reqwest)?;
 
-            let file_cache = &shared_state.lock().await.file_cache;
+            // Skip filtering in update mode to get all posts for cache refresh
+            if !options.update {
+                let file_cache = &shared_state.lock().await.file_cache;
 
-            let non_downloaded = res
-                .data
-                .children
-                .into_iter()
-                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
-                .collect::<Vec<_>>();
-            res.data.children = non_downloaded;
+                // Filter out posts only if ALL items for that post ID are successfully downloaded.
+                // This ensures gallery posts with some failed items are re-fetched.
+                let non_downloaded = res
+                    .data
+                    .children
+                    .into_iter()
+                    .filter(|rc| {
+                        let cached_items: Vec<_> = file_cache
+                            .files
+                            .iter()
+                            .filter(|f| f.id == rc.data.id)
+                            .collect();
+                        
+                        // Keep the post if:
+                        // 1. No items cached for this ID, OR
+                        // 2. Any cached item has success == false
+                        cached_items.is_empty() || cached_items.iter().any(|f| !f.success)
+                    })
+                    .collect::<Vec<_>>();
+                res.data.children = non_downloaded;
+            }
 
             if !res.data.children.is_empty() {
                 responses.push(res.to_owned());
@@ -363,15 +401,31 @@ impl RedditClient {
             let mut res: RedditSubmittedResponse =
                 res.json().await.map_err(RedditProviderError::Reqwest)?;
 
-            let file_cache = &shared_state.lock().await.file_cache;
+            // Skip filtering in update mode to get all posts for cache refresh
+            if !options.update {
+                let file_cache = &shared_state.lock().await.file_cache;
 
-            let non_downloaded = res
-                .data
-                .children
-                .into_iter()
-                .filter(|rc| !file_cache.files.iter().any(|f| f.id == rc.data.id))
-                .collect::<Vec<_>>();
-            res.data.children = non_downloaded;
+                // Filter out posts only if ALL items for that post ID are successfully downloaded.
+                // This ensures gallery posts with some failed items are re-fetched.
+                let non_downloaded = res
+                    .data
+                    .children
+                    .into_iter()
+                    .filter(|rc| {
+                        let cached_items: Vec<_> = file_cache
+                            .files
+                            .iter()
+                            .filter(|f| f.id == rc.data.id)
+                            .collect();
+                        
+                        // Keep the post if:
+                        // 1. No items cached for this ID, OR
+                        // 2. Any cached item has success == false
+                        cached_items.is_empty() || cached_items.iter().any(|f| !f.success)
+                    })
+                    .collect::<Vec<_>>();
+                res.data.children = non_downloaded;
+            }
 
             if !res.data.children.is_empty() {
                 responses.push(res.to_owned());

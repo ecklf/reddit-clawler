@@ -70,6 +70,8 @@ pub async fn download_crawler_post(
         title,
         upvotes,
         url,
+        is_gallery: _,
+        media_id: _,
     } = media;
 
     let file_scheme = String::from("{UPVOTES}_{AUTHOR}_{POSTID}_{DATE}");

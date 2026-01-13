@@ -177,12 +177,21 @@ pub async fn handle_user_command(
         }
 
         for post in &posts {
-            // Find if this post exists in cache
+            // Find if this post exists in cache (matching by id, index, and media_id)
             if let Some(cached_item) = ss
                 .file_cache
                 .files
                 .iter_mut()
-                .find(|f| f.id == post.id && f.index == post.index)
+                .find(|f| {
+                    let id_matches = f.id == post.id;
+                    let index_matches = f.index == post.index;
+                    let media_id_matches = match (&post.media_id, &f.media_id) {
+                        (Some(p_mid), Some(f_mid)) => p_mid == f_mid,
+                        (None, None) => true,
+                        _ => false,
+                    };
+                    id_matches && index_matches && media_id_matches
+                })
             {
                 // Update existing cache entry with fresh metadata
                 cached_item.is_gallery = post.is_gallery;
@@ -260,7 +269,16 @@ pub async fn handle_user_command(
                     .file_cache
                     .files
                     .iter()
-                    .any(|f| p.id == f.id && p.index == f.index && f.success);
+                    .any(|f| {
+                        let id_matches = p.id == f.id;
+                        let index_matches = p.index == f.index;
+                        let media_id_matches = match (&p.media_id, &f.media_id) {
+                            (Some(p_mid), Some(f_mid)) => p_mid == f_mid,
+                            (None, None) => true,
+                            _ => false, // One has media_id, other doesn't - not a match
+                        };
+                        id_matches && index_matches && media_id_matches && f.success
+                    });
                 !found
             })
             .collect::<Vec<_>>();

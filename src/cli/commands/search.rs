@@ -144,6 +144,7 @@ pub async fn handle_search_command(
             {
                 // Update existing cache entry with fresh metadata
                 cached_item.is_gallery = post.is_gallery;
+                cached_item.media_id = post.media_id.clone();
                 cached_item.title = post.title.clone();
                 cached_item.url = post.url.clone();
                 cached_item.created_utc = post.created_utc;
@@ -161,6 +162,7 @@ pub async fn handle_search_command(
                     success: false,
                     index: post.index,
                     is_gallery: post.is_gallery,
+                    media_id: post.media_id.clone(),
                 });
                 new_count += 1;
             }
@@ -289,6 +291,7 @@ pub async fn handle_search_command(
                                     success: true,
                                     index: post.index,
                                     is_gallery: post.is_gallery,
+                                    media_id: post.media_id.clone(),
                                 });
 
                             dp_clone.lock().await.update_progress(
@@ -312,6 +315,7 @@ pub async fn handle_search_command(
                                     success: false,
                                     index: post.index,
                                     is_gallery: post.is_gallery,
+                                    media_id: post.media_id.clone(),
                                 });
                             let mut dl_stats = ds_clone.lock().await;
                             dl_stats.downloads_failed += 1;

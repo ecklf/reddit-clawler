@@ -30,6 +30,8 @@ pub struct RedditCrawlerPost {
     // This is the index of the image in the gallery
     pub index: Option<usize>,
     pub is_gallery: Option<bool>,
+    // For gallery posts, this is the media_id of each individual item
+    pub media_id: Option<String>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -83,6 +85,7 @@ impl RedditPostParser {
                                             upvotes: upvotes.to_owned(),
                                             url: h.to_owned(),
                                             is_gallery: Some(false),
+                                            media_id: None,
                                         }),
                                     ];
                                 }
@@ -109,6 +112,7 @@ impl RedditPostParser {
                                                 upvotes: upvotes.to_owned(),
                                                 url: mp4_src.source.url.to_owned(),
                                                 is_gallery: Some(false),
+                                                media_id: None,
                                             }
                                         })
                                     })
@@ -140,6 +144,7 @@ impl RedditPostParser {
                                                 upvotes: upvotes.to_owned(),
                                                 url: gif_src.source.url.to_owned(),
                                                 is_gallery: Some(false),
+                                                media_id: None,
                                             }
                                         })
                                     })
@@ -168,6 +173,7 @@ impl RedditPostParser {
                                     upvotes: upvotes.to_owned(),
                                     url: data.url.to_owned(),
                                     is_gallery: Some(false),
+                                    media_id: None,
                                 }),
                             ];
                         }
@@ -185,6 +191,7 @@ impl RedditPostParser {
                                 upvotes: upvotes.to_owned(),
                                 url: data.url.to_owned(),
                                 is_gallery: Some(false),
+                                media_id: None,
                             }),
                         ];
                     }
@@ -224,6 +231,7 @@ impl RedditPostParser {
                                                 upvotes: upvotes.to_owned(),
                                                 url: u.to_owned(),
                                                 is_gallery: Some(true),
+                                                media_id: Some(media_id.to_owned()),
                                             });
                                         }
                                         if let Some(gif) = &s_media.gif {
@@ -239,6 +247,7 @@ impl RedditPostParser {
                                                 upvotes: upvotes.to_owned(),
                                                 url: gif.to_owned(),
                                                 is_gallery: Some(true),
+                                                media_id: Some(media_id.to_owned()),
                                             });
                                         }
                                         None
@@ -271,6 +280,7 @@ impl RedditPostParser {
                                             upvotes: upvotes.to_owned(),
                                             url: mp4.to_owned(),
                                             is_gallery: Some(false),
+                                            media_id: None,
                                         });
                                     }
                                     None
@@ -296,6 +306,7 @@ impl RedditPostParser {
                                     upvotes: upvotes.to_owned(),
                                     url: data.url.to_owned(),
                                     is_gallery: Some(false),
+                                    media_id: None,
                                 }),
                             ];
                         }
@@ -317,6 +328,7 @@ impl RedditPostParser {
                             upvotes: upvotes.to_owned(),
                             url: data.url.to_owned(),
                             is_gallery: Some(false),
+                            media_id: None,
                         }),
                     ];
                 }
@@ -336,6 +348,7 @@ impl RedditPostParser {
                             upvotes: upvotes.to_owned(),
                             url: data.url.to_owned(),
                             is_gallery: Some(false),
+                            media_id: None,
                         }),
                     ];
                 }
@@ -355,6 +368,7 @@ impl RedditPostParser {
                             upvotes: upvotes.to_owned(),
                             url: data.url.to_owned(),
                             is_gallery: Some(false),
+                            media_id: None,
                         }),
                     ];
                 }

@@ -105,6 +105,8 @@ pub struct FileCacheItemLatest {
     pub index: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_gallery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_id: Option<String>,
 }
 
 // V3 - camelCase with is_gallery
@@ -243,6 +245,7 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
                         success: item.success,
                         index: item.index,
                         is_gallery: item.is_gallery,
+                        media_id: None,
                     })
                     .collect(),
             };

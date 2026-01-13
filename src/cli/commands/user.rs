@@ -341,8 +341,7 @@ pub async fn handle_user_command(
                                 .lock()
                                 .await
                                 .file_cache
-                                .files
-                                .push(FileCacheItemLatest {
+                                .upsert_item(FileCacheItemLatest {
                                     id: post.id.clone(),
                                     created_utc: post.created_utc,
                                     title: post.title.clone(),
@@ -365,8 +364,7 @@ pub async fn handle_user_command(
                                 .lock()
                                 .await
                                 .file_cache
-                                .files
-                                .push(FileCacheItemLatest {
+                                .upsert_item(FileCacheItemLatest {
                                     id: post.id.clone(),
                                     created_utc: post.created_utc,
                                     title: post.title.clone(),

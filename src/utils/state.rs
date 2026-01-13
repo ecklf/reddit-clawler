@@ -93,6 +93,47 @@ pub struct FileCacheLatest {
     pub files: Vec<FileCacheItemLatest>,
 }
 
+impl FileCacheLatest {
+    /// Upsert a cache item by id + index + media_id.
+    /// If an existing item matches, it updates the item (keeping success=false if the new one is false).
+    /// If no match is found, it pushes a new item.
+    pub fn upsert_item(&mut self, item: FileCacheItemLatest) {
+        // Find existing item by id + index + media_id
+        let existing = self.files.iter_mut().find(|f| {
+            let id_matches = f.id == item.id;
+            let index_matches = f.index == item.index;
+            let media_id_matches = match (&item.media_id, &f.media_id) {
+                (Some(new_mid), Some(existing_mid)) => new_mid == existing_mid,
+                (None, None) => true,
+                _ => false,
+            };
+            id_matches && index_matches && media_id_matches
+        });
+
+        match existing {
+            Some(existing_item) => {
+                // Update existing item
+                // Keep success=false if the new item has success=false (as requested)
+                if !item.success {
+                    existing_item.success = false;
+                } else {
+                    existing_item.success = item.success;
+                }
+                existing_item.title = item.title;
+                existing_item.url = item.url;
+                existing_item.created_utc = item.created_utc;
+                existing_item.subreddit = item.subreddit;
+                existing_item.is_gallery = item.is_gallery;
+                existing_item.media_id = item.media_id;
+            }
+            None => {
+                // No existing item found, push new one
+                self.files.push(item);
+            }
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct FileCacheItemLatest {

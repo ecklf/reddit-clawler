@@ -36,10 +36,20 @@ pub struct RedditClient {
 
 impl Default for RedditClient {
     fn default() -> Self {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let ios_major: u32 = rng.gen_range(9..14);
+        let ios_minor: u32 = rng.gen_range(0..10);
+        let safari_v: u32 = rng.gen_range(600..605);
+        let webkit_v: u32 = rng.gen_range(500..1200);
+        let ua = format!(
+            "Mozilla/5.0 (CPU iPhone OS {ios_major}_{ios_minor} like Mac OS X) AppleWebKit/{webkit_v}.60 (KHTML, like Gecko) Version/{safari_v}.0 Mobile/15E148 Safari/{webkit_v}.60"
+        );
+
         let mut map: HeaderMap = reqwest::header::HeaderMap::new();
         map.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static("Reddit-User-Analysis"),
+            reqwest::header::HeaderValue::from_str(&ua).unwrap(),
         );
 
         Self { headers: map }
@@ -59,11 +69,11 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://www.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&after={}&raw_json=1",
+                "https://old.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&after={}&raw_json=1",
                 user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST, after
             ),
             None => format!(
-                "https://www.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&raw_json=1",
+                "https://old.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&raw_json=1",
                 user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST
             ),
         }
@@ -76,7 +86,7 @@ impl RedditClient {
     ) -> Result<RedditUserAbout, RedditProviderError> {
         let res = client
             .get(format!(
-                "https://www.reddit.com/user/{}/about.json?raw_json=1",
+                "https://old.reddit.com/user/{}/about.json?raw_json=1",
                 user
             ))
             .headers(self.headers.to_owned())
@@ -221,11 +231,11 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://www.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&after={}&raw_json=1",
+                "https://old.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&after={}&raw_json=1",
                 subreddit, category, timeframe, after
             ),
             None => format!(
-                "https://www.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&raw_json=1",
+                "https://old.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&raw_json=1",
                 subreddit, category, timeframe
             ),
         }
@@ -343,11 +353,11 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://www.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&after={}&raw_json=1",
+                "https://old.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&after={}&raw_json=1",
                 term, category, timeframe, after
             ),
             None => format!(
-                "https://www.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&raw_json=1",
+                "https://old.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&raw_json=1",
                 term, category, timeframe
             ),
         }

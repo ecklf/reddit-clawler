@@ -2,3 +2,6 @@
 /output
 /output_old
 /output_latest
+crawl.sh
+out.json
+.claude

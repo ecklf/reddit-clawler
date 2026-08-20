@@ -134,7 +134,8 @@ pub async fn handle_subreddit_command(
                         fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
                         return Err(Box::new(e));
                     }
-                    clients::RedditProviderError::Forbidden => {
+                    clients::RedditProviderError::Forbidden
+                    | clients::RedditProviderError::AuthenticationRequired => {
                         let mut ss = shared_state.lock().await;
                         ss.file_cache.status.last_download = LastDownloadStatus::Forbidden;
                         fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;

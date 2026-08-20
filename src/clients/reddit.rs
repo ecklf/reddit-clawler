@@ -26,8 +26,14 @@ pub enum RedditProviderError {
     Suspended,
     #[error("Reddit returned a 429 Too Many Requests error")]
     TooManyRequests,
-    #[error("Reddit returned a 403 Forbidden error")]
+    #[error("Reddit requires authentication or returned a 403 Forbidden error")]
     Forbidden,
+    #[error("Reddit requires authentication")]
+    AuthenticationRequired,
+}
+
+fn is_reddit_login_url(url: &reqwest::Url) -> bool {
+    url.path() == "/login/"
 }
 
 pub struct RedditClient {
@@ -57,6 +63,19 @@ impl Default for RedditClient {
 }
 
 impl RedditClient {
+    async fn seed_anonymous_session(
+        &self,
+        client: &reqwest_middleware::ClientWithMiddleware,
+    ) -> Result<(), RedditProviderError> {
+        client
+            .head("https://old.reddit.com/")
+            .headers(self.headers.to_owned())
+            .send()
+            .await
+            .map_err(RedditProviderError::ReqwestMiddleware)?;
+        Ok(())
+    }
+
     fn gen_user_submitted_url(
         &self,
         user: &str,
@@ -69,12 +88,12 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://old.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&after={}&raw_json=1",
-                user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST, after
+                "https://www.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&after={}&raw_json=1",
+                user, MAX_SUBMISSIONS_PER_REQUEST, category, timeframe, after
             ),
             None => format!(
-                "https://old.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&raw_json=1",
-                user, category, timeframe, MAX_SUBMISSIONS_PER_REQUEST
+                "https://www.reddit.com/user/{}/submitted.json?include_over_18=on&limit={}&sort={}&t={}&raw_json=1",
+                user, MAX_SUBMISSIONS_PER_REQUEST, category, timeframe
             ),
         }
     }
@@ -86,7 +105,7 @@ impl RedditClient {
     ) -> Result<RedditUserAbout, RedditProviderError> {
         let res = client
             .get(format!(
-                "https://old.reddit.com/user/{}/about.json?raw_json=1",
+                "https://www.reddit.com/user/{}/about.json?raw_json=1",
                 user
             ))
             .headers(self.headers.to_owned())
@@ -100,6 +119,14 @@ impl RedditClient {
 
         if res.status() == reqwest::StatusCode::NOT_FOUND {
             return Err(RedditProviderError::NotFound);
+        }
+
+        if is_reddit_login_url(res.url()) {
+            return Err(RedditProviderError::AuthenticationRequired);
+        }
+
+        if res.status() == reqwest::StatusCode::FORBIDDEN {
+            return Err(RedditProviderError::Forbidden);
         }
 
         res.json::<RedditUserAbout>()
@@ -127,6 +154,8 @@ impl RedditClient {
 
         let CliSharedOptions { limit, .. } = options;
 
+        self.seed_anonymous_session(client).await?;
+
         loop {
             let url = match after {
                 Some(after) => self.gen_user_submitted_url(user, Some(&after), category, timeframe),
@@ -146,6 +175,10 @@ impl RedditClient {
 
             if res.status() == reqwest::StatusCode::NOT_FOUND {
                 return Err(RedditProviderError::NotFound);
+            }
+
+            if is_reddit_login_url(res.url()) {
+                return Err(RedditProviderError::AuthenticationRequired);
             }
 
             if res.status() == reqwest::StatusCode::FORBIDDEN {
@@ -231,11 +264,11 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://old.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&after={}&raw_json=1",
+                "https://www.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&after={}&raw_json=1",
                 subreddit, category, timeframe, after
             ),
             None => format!(
-                "https://old.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&raw_json=1",
+                "https://www.reddit.com/r/{}/{}.json?include_over_18=on&limit=100&t={}&raw_json=1",
                 subreddit, category, timeframe
             ),
         }
@@ -261,6 +294,8 @@ impl RedditClient {
 
         let CliSharedOptions { limit, .. } = options;
 
+        self.seed_anonymous_session(client).await?;
+
         loop {
             let url = match after {
                 Some(after) => {
@@ -282,6 +317,10 @@ impl RedditClient {
 
             if res.status() == reqwest::StatusCode::NOT_FOUND {
                 return Err(RedditProviderError::NotFound);
+            }
+
+            if is_reddit_login_url(res.url()) {
+                return Err(RedditProviderError::AuthenticationRequired);
             }
 
             if res.status() == reqwest::StatusCode::FORBIDDEN {
@@ -353,11 +392,11 @@ impl RedditClient {
 
         match after {
             Some(after) => format!(
-                "https://old.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&after={}&raw_json=1",
+                "https://www.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&after={}&raw_json=1",
                 term, category, timeframe, after
             ),
             None => format!(
-                "https://old.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&raw_json=1",
+                "https://www.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&raw_json=1",
                 term, category, timeframe
             ),
         }
@@ -383,6 +422,8 @@ impl RedditClient {
 
         let CliSharedOptions { limit, .. } = options;
 
+        self.seed_anonymous_session(client).await?;
+
         loop {
             let url = match after {
                 Some(after) => self.gen_search_url(term, Some(&after), category, timeframe),
@@ -402,6 +443,10 @@ impl RedditClient {
 
             if res.status() == reqwest::StatusCode::NOT_FOUND {
                 return Err(RedditProviderError::NotFound);
+            }
+
+            if is_reddit_login_url(res.url()) {
+                return Err(RedditProviderError::AuthenticationRequired);
             }
 
             if res.status() == reqwest::StatusCode::FORBIDDEN {
@@ -459,5 +504,54 @@ impl RedditClient {
         }
 
         Ok(responses)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_reddit_login_url() {
+        let url = reqwest::Url::parse(
+            "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2F",
+        )
+        .unwrap();
+
+        assert!(is_reddit_login_url(&url));
+    }
+
+    #[test]
+    fn generates_user_submissions_url() {
+        let client = RedditClient::default();
+
+        let url = client.gen_user_submitted_url(
+            "spez",
+            None,
+            &RedditCategoryFilter::New,
+            &RedditTimeframeFilter::All,
+        );
+
+        assert_eq!(
+            url,
+            "https://www.reddit.com/user/spez/submitted.json?include_over_18=on&limit=100&sort=new&t=all&raw_json=1"
+        );
+    }
+
+    #[test]
+    fn generates_paginated_user_submissions_url() {
+        let client = RedditClient::default();
+
+        let url = client.gen_user_submitted_url(
+            "spez",
+            Some("t3_example"),
+            &RedditCategoryFilter::Top,
+            &RedditTimeframeFilter::Year,
+        );
+
+        assert_eq!(
+            url,
+            "https://www.reddit.com/user/spez/submitted.json?include_over_18=on&limit=100&sort=top&t=year&after=t3_example&raw_json=1"
+        );
     }
 }

@@ -31,10 +31,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     .with(RetryTransientMiddleware::new_with_policy(retry_policy))
     .build();
 
-    // Reddit's edge issues a `loid` cookie on HTML pages and 403s `*.json` calls
-    // from sessions that never received one. A single warm-up GET seeds the jar.
-    let _ = client.get("https://old.reddit.com/").send().await;
-
     // Shared state between tokio tasks e.g. caching an authorization token
     let shared_state: Arc<Mutex<SharedState>> = Arc::new(Mutex::new(SharedState::default()));
 

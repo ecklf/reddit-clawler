@@ -88,7 +88,7 @@ pub async fn download_crawler_post(
     }
 
     let file_path = format!(
-        "./{folder_path}/{file_name}.{extension}",
+        "{folder_path}/{file_name}.{extension}",
         folder_path = folder_path,
         file_name = file_name,
         extension = extension

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     cli::{CliRedditCommand, CliSharedOptions, RedditCategoryFilter, RedditTimeframeFilter},
@@ -218,7 +218,7 @@ impl RedditClient {
                             .iter()
                             .filter(|f| f.id == rc.data.id)
                             .collect();
-                        
+
                         // Keep the post if:
                         // 1. No items cached for this ID, OR
                         // 2. Any cached item has success == false
@@ -248,6 +248,28 @@ impl RedditClient {
                 }
             }
         }
+
+        let search_term = format!("author:{}", user);
+        let mut search_responses = self
+            .get_search_submissions_for_term(
+                client,
+                shared_state,
+                &search_term,
+                category,
+                timeframe,
+                options,
+            )
+            .await?;
+        responses.append(&mut search_responses);
+
+        let mut seen_ids = HashSet::new();
+        for response in &mut responses {
+            response
+                .data
+                .children
+                .retain(|child| seen_ids.insert(child.data.id.clone()));
+        }
+        responses.retain(|response| !response.data.children.is_empty());
 
         Ok(responses)
     }
@@ -346,7 +368,7 @@ impl RedditClient {
                             .iter()
                             .filter(|f| f.id == rc.data.id)
                             .collect();
-                        
+
                         // Keep the post if:
                         // 1. No items cached for this ID, OR
                         // 2. Any cached item has success == false
@@ -387,19 +409,21 @@ impl RedditClient {
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
     ) -> String {
-        let category = category.to_string();
-        let timeframe = timeframe.to_string();
-
-        match after {
-            Some(after) => format!(
-                "https://www.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&after={}&raw_json=1",
-                term, category, timeframe, after
-            ),
-            None => format!(
-                "https://www.reddit.com/search.json?q={}&include_over_18=on&count=100&sort={}&t={}&raw_json=1",
-                term, category, timeframe
-            ),
+        let mut url = reqwest::Url::parse("https://www.reddit.com/search.json").unwrap();
+        let mut query = url.query_pairs_mut();
+        query
+            .append_pair("q", term)
+            .append_pair("include_over_18", "on")
+            .append_pair("limit", &MAX_SUBMISSIONS_PER_REQUEST.to_string())
+            .append_pair("sort", &category.to_string())
+            .append_pair("t", &timeframe.to_string());
+        if let Some(after) = after {
+            query.append_pair("after", after);
         }
+        query.append_pair("raw_json", "1");
+        drop(query);
+
+        url.into()
     }
 
     pub async fn get_search_submissions(
@@ -409,10 +433,6 @@ impl RedditClient {
         cmd: &CliRedditCommand,
         options: &CliSharedOptions,
     ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
-        let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
-        let mut after: Option<String> = None;
-        let mut request_count: u32 = 0;
-
         let CliRedditCommand {
             resource: term,
             category,
@@ -420,6 +440,29 @@ impl RedditClient {
             ..
         } = cmd;
 
+        self.get_search_submissions_for_term(
+            client,
+            shared_state,
+            term,
+            category,
+            timeframe,
+            options,
+        )
+        .await
+    }
+
+    async fn get_search_submissions_for_term(
+        &self,
+        client: &reqwest_middleware::ClientWithMiddleware,
+        shared_state: &Arc<Mutex<SharedState>>,
+        term: &str,
+        category: &RedditCategoryFilter,
+        timeframe: &RedditTimeframeFilter,
+        options: &CliSharedOptions,
+    ) -> Result<Vec<RedditSubmittedResponse>, RedditProviderError> {
+        let mut responses: Vec<RedditSubmittedResponse> = Vec::new();
+        let mut after: Option<String> = None;
+        let mut request_count: u32 = 0;
         let CliSharedOptions { limit, .. } = options;
 
         self.seed_anonymous_session(client).await?;
@@ -472,7 +515,7 @@ impl RedditClient {
                             .iter()
                             .filter(|f| f.id == rc.data.id)
                             .collect();
-                        
+
                         // Keep the post if:
                         // 1. No items cached for this ID, OR
                         // 2. Any cached item has success == false
@@ -552,6 +595,23 @@ mod tests {
         assert_eq!(
             url,
             "https://www.reddit.com/user/spez/submitted.json?include_over_18=on&limit=100&sort=top&t=year&after=t3_example&raw_json=1"
+        );
+    }
+
+    #[test]
+    fn generates_author_search_url() {
+        let client = RedditClient::default();
+
+        let url = client.gen_search_url(
+            "author:spez",
+            None,
+            &RedditCategoryFilter::New,
+            &RedditTimeframeFilter::All,
+        );
+
+        assert_eq!(
+            url,
+            "https://www.reddit.com/search.json?q=author%3Aspez&include_over_18=on&limit=100&sort=new&t=all&raw_json=1"
         );
     }
 }

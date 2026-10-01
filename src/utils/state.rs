@@ -83,6 +83,8 @@ pub enum LastDownloadStatus {
 pub struct FileCacheStatus {
     pub resource: ResourceStatus,
     pub last_download: LastDownloadStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_download_tz: Option<DateTime<Utc>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -156,6 +158,8 @@ pub struct FileCacheItemLatest {
 pub struct FileCacheStatusV3 {
     pub resource: ResourceStatus,
     pub last_download: LastDownloadStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_download_tz: Option<DateTime<Utc>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -186,6 +190,8 @@ pub struct FileCacheItemV3 {
 pub struct FileCacheStatusV2 {
     pub resource: ResourceStatus,
     pub last_download: LastDownloadStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_download_tz: Option<DateTime<Utc>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -250,6 +256,7 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
             value["status"] = serde_json::to_value(FileCacheStatusV2 {
                 resource: ResourceStatus::Active,
                 last_download: LastDownloadStatus::Success,
+                last_download_tz: None,
             })
             .map_err(FileCacheError::SerdeJson)?;
             get_cache_from_serde_value(value)
@@ -273,6 +280,7 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
                 status: FileCacheStatus {
                     resource: v3_cache.status.resource,
                     last_download: v3_cache.status.last_download,
+                    last_download_tz: v3_cache.status.last_download_tz,
                 },
                 files: v3_cache
                     .files
@@ -332,9 +340,48 @@ impl Default for SharedState {
                 status: FileCacheStatus {
                     resource: ResourceStatus::Active,
                     last_download: LastDownloadStatus::Success,
+                    last_download_tz: None,
                 },
                 files: Vec::new(),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileCacheLatest;
+    use chrono::{TimeZone, Utc};
+    use std::str::FromStr;
+
+    #[test]
+    fn old_cache_without_success_timestamp_still_deserializes() {
+        let cache = FileCacheLatest::from_str(
+            r#"{
+                "version": 4,
+                "status": {
+                    "resource": "active",
+                    "last_download": "success"
+                },
+                "files": []
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(cache.status.last_download_tz, None);
+    }
+
+    #[test]
+    fn download_timestamp_is_serialized_in_snake_case() {
+        let timestamp = Utc.with_ymd_and_hms(2026, 10, 1, 12, 0, 0).unwrap();
+        let mut cache = FileCacheLatest::default();
+        cache.status.last_download_tz = Some(timestamp);
+
+        let json = serde_json::to_value(cache).unwrap();
+
+        assert_eq!(
+            json["status"]["last_download_tz"],
+            "2026-10-01T12:00:00Z"
+        );
     }
 }

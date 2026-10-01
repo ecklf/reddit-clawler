@@ -60,6 +60,12 @@ pub async fn handle_search_command(
         ss.file_cache = file_cache.clone();
     }
 
+    {
+        let mut ss = shared_state.lock().await;
+        ss.file_cache.status.last_download_tz = Some(chrono::Utc::now());
+        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+    }
+
     let responses = match &options.mock {
         Some(mock_file) => {
             println!(
@@ -186,7 +192,7 @@ pub async fn handle_search_command(
         for file in &ss.file_cache.files {
             *id_counts.entry(file.id.clone()).or_insert(0) += 1;
         }
-        
+
         for file in &mut ss.file_cache.files {
             if file.is_gallery.is_none() {
                 // If this post ID has multiple entries, it's a gallery
@@ -365,10 +371,11 @@ pub async fn handle_search_command(
         total_post_len,
         dl_stats.bytes_downloaded,
     );
+    drop(dl_stats);
 
     clockwork_orange.await?;
 
-    let ss = &shared_state.lock().await;
+    let ss = shared_state.lock().await;
     let cache = serde_json::to_string(&ss.file_cache)?;
     fs::write(file_cache_path, cache)?;
 

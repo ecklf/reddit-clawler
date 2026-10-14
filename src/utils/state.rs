@@ -262,8 +262,8 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
             get_cache_from_serde_value(value)
         }
         FileCacheVersion::V2 => {
-            value["version"] = serde_json::to_value(FileCacheVersion::V3)
-                .map_err(FileCacheError::SerdeJson)?;
+            value["version"] =
+                serde_json::to_value(FileCacheVersion::V3).map_err(FileCacheError::SerdeJson)?;
 
             // V2 to V3 migration - is_gallery field is optional, so no changes needed
             get_cache_from_serde_value(value)
@@ -271,9 +271,9 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
         FileCacheVersion::V3 => {
             // V3 to V4 migration - convert camelCase to snake_case
             // Parse as V3 first
-            let v3_cache = serde_json::from_value::<FileCacheV3>(value)
-                .map_err(FileCacheError::SerdeJson)?;
-            
+            let v3_cache =
+                serde_json::from_value::<FileCacheV3>(value).map_err(FileCacheError::SerdeJson)?;
+
             // Convert to V4 (snake_case) - field names are same in Rust, just serialization changes
             let v4_cache = FileCacheLatest {
                 version: FileCacheVersion::Latest,
@@ -379,9 +379,6 @@ mod tests {
 
         let json = serde_json::to_value(cache).unwrap();
 
-        assert_eq!(
-            json["status"]["last_download_tz"],
-            "2026-10-01T12:00:00Z"
-        );
+        assert_eq!(json["status"]["last_download_tz"], "2026-10-01T12:00:00Z");
     }
 }

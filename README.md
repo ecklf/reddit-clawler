@@ -26,6 +26,16 @@ Crawls posts from `/u/spez` with spawning `50` tasks to `./downloads/user/spez`:
 ./reddit_clawler user spez  --category new --tasks 50 -o ./downloads
 ```
 
+If Reddit returns a forbidden response, provide an exported browser cookie file.
+JSON browser exports must use `.json`; Netscape cookie files must use `.txt`:
+
+```sh
+./reddit_clawler user spez --category new --cookies ./cookies.json
+./reddit_clawler user spez --category new -c ./cookies.txt
+```
+
+Cookie files contain account credentials and should be kept private.
+
 ### Subreddit 
 Crawls posts from `/r/redpandas` from the `top` category, filtered by `hour`:
 

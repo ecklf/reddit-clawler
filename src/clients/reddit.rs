@@ -11,6 +11,7 @@ use reqwest::header::HeaderMap;
 use thiserror::Error;
 use tokio::sync::Mutex;
 const MAX_SUBMISSIONS_PER_REQUEST: u32 = 100;
+pub const REDDIT_USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 #[derive(Error, Debug)]
 pub enum RedditProviderError {
@@ -42,20 +43,18 @@ pub struct RedditClient {
 
 impl Default for RedditClient {
     fn default() -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let ios_major: u32 = rng.gen_range(9..14);
-        let ios_minor: u32 = rng.gen_range(0..10);
-        let safari_v: u32 = rng.gen_range(600..605);
-        let webkit_v: u32 = rng.gen_range(500..1200);
-        let ua = format!(
-            "Mozilla/5.0 (CPU iPhone OS {ios_major}_{ios_minor} like Mac OS X) AppleWebKit/{webkit_v}.60 (KHTML, like Gecko) Version/{safari_v}.0 Mobile/15E148 Safari/{webkit_v}.60"
-        );
-
         let mut map: HeaderMap = reqwest::header::HeaderMap::new();
         map.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_str(&ua).unwrap(),
+            reqwest::header::HeaderValue::from_static(REDDIT_USER_AGENT),
+        );
+        map.insert(
+            reqwest::header::CACHE_CONTROL,
+            reqwest::header::HeaderValue::from_static("no-cache"),
+        );
+        map.insert(
+            reqwest::header::PRAGMA,
+            reqwest::header::HeaderValue::from_static("no-cache"),
         );
 
         Self { headers: map }

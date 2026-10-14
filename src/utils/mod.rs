@@ -1,9 +1,11 @@
 mod check_deps;
 mod check_file_scheme;
+mod cookies;
 mod download_progress;
 mod downloader;
 pub mod state;
 pub use check_deps::*;
 pub use check_file_scheme::*;
+pub use cookies::load_cookie_file;
 pub use download_progress::*;
 pub use downloader::*;

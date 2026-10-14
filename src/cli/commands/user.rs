@@ -161,6 +161,12 @@ pub async fn handle_user_command(
         .flat_map(|r| reddit_parser.parse(r))
         .collect::<Vec<_>>();
 
+    if let Some(last_post_tz) = posts.iter().map(|post| post.created_utc).max() {
+        let mut ss = shared_state.lock().await;
+        ss.file_cache.status.last_post_tz = Some(last_post_tz);
+        fs::write(&file_cache_path, serde_json::to_string(&ss.file_cache)?)?;
+    }
+
     // Update mode: refresh all cache entries with latest metadata (including is_gallery)
     if options.update {
         println!(

@@ -85,6 +85,8 @@ pub struct FileCacheStatus {
     pub last_download: LastDownloadStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_download_tz: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_post_tz: Option<DateTime<Utc>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -281,6 +283,7 @@ pub fn get_cache_from_serde_value(mut value: Value) -> Result<FileCacheLatest, F
                     resource: v3_cache.status.resource,
                     last_download: v3_cache.status.last_download,
                     last_download_tz: v3_cache.status.last_download_tz,
+                    last_post_tz: None,
                 },
                 files: v3_cache
                     .files
@@ -341,6 +344,7 @@ impl Default for SharedState {
                     resource: ResourceStatus::Active,
                     last_download: LastDownloadStatus::Success,
                     last_download_tz: None,
+                    last_post_tz: None,
                 },
                 files: Vec::new(),
             },
@@ -369,6 +373,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(cache.status.last_download_tz, None);
+        assert_eq!(cache.status.last_post_tz, None);
     }
 
     #[test]
@@ -380,5 +385,16 @@ mod tests {
         let json = serde_json::to_value(cache).unwrap();
 
         assert_eq!(json["status"]["last_download_tz"], "2026-10-01T12:00:00Z");
+    }
+
+    #[test]
+    fn last_post_timestamp_is_serialized_in_snake_case() {
+        let timestamp = Utc.with_ymd_and_hms(2026, 10, 1, 12, 0, 0).unwrap();
+        let mut cache = FileCacheLatest::default();
+        cache.status.last_post_tz = Some(timestamp);
+
+        let json = serde_json::to_value(cache).unwrap();
+
+        assert_eq!(json["status"]["last_post_tz"], "2026-10-01T12:00:00Z");
     }
 }

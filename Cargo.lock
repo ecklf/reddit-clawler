@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "reddit_clawler"
-version = "0.3.10"
+version = "0.3.11"
 dependencies = [
  "anyhow",
  "async-trait",

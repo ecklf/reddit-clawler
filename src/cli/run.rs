@@ -7,6 +7,7 @@ pub struct CliSharedOptions {
     pub concurrency: u16,
     pub mock: Option<String>,
     pub output: String,
+    pub cookies: Option<String>,
     pub skip: bool,
     pub verbose: bool,
     pub limit: Option<u32>,
@@ -129,6 +130,14 @@ pub fn run() -> CliCommand {
             .value_name("PATH")
             .default_value("output")
             .action(clap::ArgAction::Set),
+        Arg::new("cookies")
+            .short('c')
+            .long("cookies")
+            .long_help(
+                "Load Reddit cookies from a browser-export JSON or Netscape-format text file",
+            )
+            .value_name("PATH")
+            .action(clap::ArgAction::Set),
     ];
 
     let cmd = Command::new("reddit-clawler")
@@ -217,6 +226,7 @@ pub fn run() -> CliCommand {
         let concurrency = m.get_one::<u16>("tasks").unwrap().to_owned();
         let mock = m.get_one::<String>("mock").cloned();
         let output = m.get_one::<String>("output").unwrap().to_owned();
+        let cookies = m.get_one::<String>("cookies").cloned();
         let skip = m.get_one::<bool>("skip").unwrap().to_owned();
         let verbose = m.get_one::<bool>("verbose").unwrap().to_owned();
         let limit = m.get_one::<u32>("limit").copied();
@@ -227,6 +237,7 @@ pub fn run() -> CliCommand {
             concurrency,
             mock,
             output,
+            cookies,
             skip,
             verbose,
             limit,

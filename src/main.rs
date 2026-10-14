@@ -1,5 +1,5 @@
 use reddit_clawler::{
-    cli,
+    cli, clients,
     utils::{self, state::SharedState},
 };
 use reqwest_middleware::ClientBuilder;
@@ -16,15 +16,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // check_file_scheme(&file_scheme);
     let cli_request = cli::run();
 
+    let cookies_path = match &cli_request {
+        cli::CliCommand::User(cmd)
+        | cli::CliCommand::Search(cmd)
+        | cli::CliCommand::Subreddit(cmd) => cmd.options.cookies.as_deref(),
+    };
+    let cookie_jar = match cookies_path {
+        Some(path) => Arc::new(utils::load_cookie_file(path)?),
+        None => Arc::new(reqwest::cookie::Jar::default()),
+    };
+
     // Create client and state that is shared between tokio tasks
     // Retries up to 3 times with increasing intervals between attempts
     let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
-    let user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36";
     let client = ClientBuilder::new(
         reqwest::Client::builder()
-            .user_agent(user_agent)
-            .cookie_store(true)
+            .user_agent(clients::REDDIT_USER_AGENT)
+            .cookie_provider(cookie_jar)
             .build()
             .unwrap(),
     )

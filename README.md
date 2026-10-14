@@ -27,7 +27,7 @@ Crawls posts from `/u/spez` with spawning `50` tasks to `./downloads/user/spez`:
 ```
 
 If Reddit returns a forbidden response, provide an exported browser cookie file.
-JSON browser exports must use `.json`; Netscape cookie files must use `.txt`:
+The file is first parsed as browser-export JSON, then as Netscape text if JSON parsing fails:
 
 ```sh
 ./reddit_clawler user spez --category new --cookies ./cookies.json

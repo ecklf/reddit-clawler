@@ -20,7 +20,7 @@ struct BrowserCookie {
     session: Option<bool>,
 }
 
-/// Loads a browser-export JSON or Netscape-format text cookie file into a jar.
+/// Loads browser-export JSON cookies, falling back to Netscape-format text.
 pub fn load_cookie_file(path: impl AsRef<Path>) -> Result<Jar, anyhow::Error> {
     let path = path.as_ref();
     let contents = fs::read_to_string(path)
@@ -31,13 +31,16 @@ pub fn load_cookie_file(path: impl AsRef<Path>) -> Result<Jar, anyhow::Error> {
     let jar = Jar::default();
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
-    match path.extension().and_then(|extension| extension.to_str()) {
-        Some("json") => load_json_cookies(&jar, &contents, path, now)?,
-        Some("txt") => load_netscape_cookies(&jar, &contents, path, now)?,
-        _ => anyhow::bail!(
-            "Cookie file {} must use a .json or .txt extension",
-            path.display()
-        ),
+    match serde_json::from_str::<Vec<BrowserCookie>>(&contents) {
+        Ok(cookies) => load_json_cookies(&jar, cookies, path, now)?,
+        Err(json_error) => {
+            if let Err(netscape_error) = load_netscape_cookies(&jar, &contents, path, now) {
+                anyhow::bail!(
+                    "Cookie file {} is neither valid browser-export JSON ({json_error}) nor Netscape text ({netscape_error})",
+                    path.display()
+                );
+            }
+        }
     }
 
     Ok(jar)
@@ -45,17 +48,10 @@ pub fn load_cookie_file(path: impl AsRef<Path>) -> Result<Jar, anyhow::Error> {
 
 fn load_json_cookies(
     jar: &Jar,
-    contents: &str,
+    cookies: Vec<BrowserCookie>,
     path: &Path,
     now: u64,
 ) -> Result<(), anyhow::Error> {
-    let cookies = serde_json::from_str::<Vec<BrowserCookie>>(contents).map_err(|error| {
-        anyhow::anyhow!(
-            "Failed to parse JSON cookie file {}: {error}",
-            path.display()
-        )
-    })?;
-
     for (index, cookie) in cookies.into_iter().enumerate() {
         let expiration = cookie.expiration_date.map(|value| value as u64);
         if expiration.is_some_and(|expires| expires <= now) {

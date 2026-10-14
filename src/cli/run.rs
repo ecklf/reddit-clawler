@@ -134,7 +134,7 @@ pub fn run() -> CliCommand {
             .short('c')
             .long("cookies")
             .long_help(
-                "Load Reddit cookies from a .json browser export or Netscape-format .txt file",
+                "Load Reddit cookies from a browser-export JSON or Netscape-format text file",
             )
             .value_name("PATH")
             .action(clap::ArgAction::Set),

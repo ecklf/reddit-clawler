@@ -224,7 +224,7 @@ pub async fn handle_search_command(
 
     let mut posts_to_download = posts.clone();
 
-    if Path::new(&file_cache_path).exists() {
+    if !options.force && Path::new(&file_cache_path).exists() {
         let ss = shared_state.lock().await;
         posts_to_download = posts_to_download
             .into_iter()

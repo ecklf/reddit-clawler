@@ -12,11 +12,15 @@ use wreq_util::Emulation;
 const MAX_RETRIES: u32 = 3;
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(120);
 
+// Reddit redirects requests accepting HTML to its media viewer instead of serving the file.
+pub const MEDIA_ACCEPT: &str = "image/webp,image/*,video/*;q=0.9,*/*;q=0.8";
+
 /// Keep the TLS handshake, HTTP/2 settings, header order and browser headers consistent.
 pub fn build_client(cookie_jar: Arc<Jar>) -> wreq::Result<Client> {
     Client::builder()
         .emulation(Emulation::SafariIos18_1_1)
         .cookie_provider(cookie_jar)
+        .redirect(wreq::redirect::Policy::limited(10))
         .connect_timeout(Duration::from_secs(15))
         .read_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(300))

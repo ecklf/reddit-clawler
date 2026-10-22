@@ -1,4 +1,4 @@
-use crate::http::RequestBuilderExt;
+use crate::http::{RequestBuilderExt, MEDIA_ACCEPT};
 use crate::utils::state::SharedState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -147,6 +147,7 @@ pub async fn download_redgifs_media(
 
     client
         .get(dl_url)
+        .header(wreq::header::ACCEPT, MEDIA_ACCEPT)
         .send_with_retry()
         .await
         .map_err(RedgifsClientError::Http)

@@ -1,9 +1,10 @@
 use super::state::SharedState;
 use crate::{
     clients::{download_redgifs_media, RedgifsQuality},
-    http::RequestBuilderExt,
+    http::{RequestBuilderExt, MEDIA_ACCEPT},
     reddit_parser::{RedditCrawlerPost, RedditMediaProviderType},
 };
+use anyhow::ensure;
 use chrono::{DateTime, Utc};
 use filetime::FileTime;
 use std::{
@@ -13,7 +14,7 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::Mutex;
-use wreq::Response;
+use wreq::{header::ACCEPT, Response};
 
 pub fn prepare_output_folder(folder_path: &str) -> Result<(), anyhow::Error> {
     if fs::metadata(folder_path).is_err() {
@@ -98,9 +99,15 @@ pub async fn download_crawler_post(
     let response = match provider {
         RedditMediaProviderType::RedditImage
         | RedditMediaProviderType::RedditGalleryImage
-        | RedditMediaProviderType::RedditGifVideo => ProviderHandlerReturned::HttpResponse(
-            Box::new(client.get(url).send_with_retry().await?),
-        ),
+        | RedditMediaProviderType::RedditGifVideo => {
+            ProviderHandlerReturned::HttpResponse(Box::new(
+                client
+                    .get(url)
+                    .header(ACCEPT, MEDIA_ACCEPT)
+                    .send_with_retry()
+                    .await?,
+            ))
+        }
         RedditMediaProviderType::RedditVideo => {
             let mut child = Command::new("yt-dlp")
                 .arg(url)
@@ -137,7 +144,11 @@ pub async fn download_crawler_post(
             ProviderHandlerReturned::ThirdPartyResponse(file_path.clone())
         }
         RedditMediaProviderType::ImgurImage => {
-            let response = client.get(url).send_with_retry().await?;
+            let response = client
+                .get(url)
+                .header(ACCEPT, MEDIA_ACCEPT)
+                .send_with_retry()
+                .await?;
             let content_type = response.headers().get("content-type");
             match content_type {
                 Some(value) => match value.to_str() {
@@ -162,7 +173,33 @@ pub async fn download_crawler_post(
 
     match response {
         ProviderHandlerReturned::HttpResponse(response) => {
-            let bytes = response.error_for_status()?.bytes().await?;
+            let response = response.error_for_status()?;
+            ensure!(
+                response.status().is_success(),
+                "Unexpected HTTP status {} from {}",
+                response.status(),
+                response.uri()
+            );
+            let content_type = response
+                .headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("")
+                .split(';')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_ascii_lowercase();
+            ensure!(
+                content_type.starts_with("image/")
+                    || content_type.starts_with("video/")
+                    || content_type == "application/octet-stream",
+                "Expected media from {}, received Content-Type: {:?}",
+                response.uri(),
+                content_type
+            );
+            let bytes = response.bytes().await?;
+            ensure!(!bytes.is_empty(), "Empty media response from {}", url);
 
             let mut out = File::create(&file_path)?;
             out.write_all(&bytes)?;

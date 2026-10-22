@@ -1,9 +1,7 @@
 use reddit_clawler::{
-    cli, clients,
+    cli, http,
     utils::{self, state::SharedState},
 };
-use reqwest_middleware::ClientBuilder;
-use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use std::{error::Error, sync::Arc};
 use tokio::sync::Mutex;
 
@@ -23,22 +21,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let cookie_jar = match cookies_path {
         Some(path) => Arc::new(utils::load_cookie_file(path)?),
-        None => Arc::new(reqwest::cookie::Jar::default()),
+        None => Arc::new(wreq::cookie::Jar::default()),
     };
 
-    // Create client and state that is shared between tokio tasks
-    // Retries up to 3 times with increasing intervals between attempts
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
-
-    let client = ClientBuilder::new(
-        reqwest::Client::builder()
-            .user_agent(clients::REDDIT_USER_AGENT)
-            .cookie_provider(cookie_jar)
-            .build()
-            .unwrap(),
-    )
-    .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-    .build();
+    let client = http::build_client(cookie_jar)?;
 
     // Shared state between tokio tasks e.g. caching an authorization token
     let shared_state: Arc<Mutex<SharedState>> = Arc::new(Mutex::new(SharedState::default()));

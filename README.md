@@ -70,6 +70,23 @@ Querying posts is paginated (100 items per requests) and can lead to rate limiti
 To avoid this, you can provide a `--limit` flag to limit the number of requests for fetching a resource.
 This can be useful for subsequent crawling.
 
+### HTTP transport
+
+Requests use a Safari iOS browser profile through `wreq`, keeping the TLS handshake,
+HTTP/2 settings, header ordering, and user agent consistent. The shared client reuses
+connections and session cookies and supports gzip, Brotli, and deflate responses.
+
+GET and HEAD requests retry transient connection failures, timeouts, and HTTP
+408/429/500/502/503/504 responses up to three times with exponential backoff and
+jitter. `Retry-After` is honored in both seconds and HTTP-date form; delays over
+two minutes return the response instead of retrying early. Authentication and
+forbidden responses are returned without automatic retries.
+
+Connections time out after 15 seconds, stalled reads after 30 seconds, and each
+attempt (including the response body) after five minutes. Browser emulation can
+reduce fingerprint mismatches, but sites may still require valid cookies or
+interactive browser challenges.
+
 ### File format
 
 By default it will prefer `mp4` over `gif`, if available.
@@ -81,6 +98,13 @@ By default it will prefer `mp4` over `gif`, if available.
 - [ ] Remove duplicated
 
 ## Development
+
+Building the HTTP transport requires a C/C++ compiler, CMake, Perl, and libclang
+for its BoringSSL backend. On Debian/Ubuntu, install them with:
+
+```sh
+sudo apt-get install build-essential cmake perl pkg-config libclang-dev
+```
 
 You can use the `--skip` flag to skip the download process:
 

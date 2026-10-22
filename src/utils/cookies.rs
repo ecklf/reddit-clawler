@@ -1,10 +1,10 @@
-use reqwest::cookie::Jar;
 use serde::Deserialize;
 use std::{
     fs,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
+use wreq::cookie::Jar;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -139,7 +139,7 @@ fn load_netscape_cookies(
         }
 
         add_cookie(
-            &jar,
+            jar,
             domain,
             include_subdomains,
             name,
@@ -183,7 +183,7 @@ fn add_cookie(
     }
 
     let host = domain.trim_start_matches('.');
-    let url = reqwest::Url::parse(&format!("https://{host}/"))?;
+    let uri: wreq::Uri = format!("https://{host}/").parse()?;
     let mut cookie = format!("{name}={value}; Path={path}");
     if include_subdomains {
         cookie.push_str(&format!("; Domain={host}"));
@@ -198,6 +198,81 @@ fn add_cookie(
         cookie.push_str(&format!("; Max-Age={max_age}"));
     }
 
-    jar.add_cookie_str(&cookie, &url);
+    jar.add(cookie, uri);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserves_imported_cookie_scope() {
+        let jar = Jar::default();
+        add_cookie(
+            &jar,
+            "www.reddit.com",
+            false,
+            "host",
+            "only",
+            "/",
+            true,
+            true,
+            None,
+        )
+        .unwrap();
+        add_cookie(
+            &jar,
+            ".reddit.com",
+            true,
+            "domain",
+            "wide",
+            "/",
+            true,
+            false,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(jar.matches("https://www.reddit.com/").count(), 2);
+        let cookies: Vec<_> = jar.matches("https://old.reddit.com/").collect();
+        assert_eq!(cookies.len(), 1);
+        assert_eq!(cookies[0].name(), "domain");
+        assert_eq!(jar.matches("http://www.reddit.com/").count(), 0);
+        assert_eq!(jar.matches("https://example.com/").count(), 0);
+    }
+
+    #[test]
+    fn preserves_imported_cookie_expiration_and_path() {
+        let jar = Jar::default();
+        add_cookie(
+            &jar,
+            "reddit.com",
+            true,
+            "expired",
+            "value",
+            "/",
+            true,
+            false,
+            Some(0),
+        )
+        .unwrap();
+        add_cookie(
+            &jar,
+            "reddit.com",
+            true,
+            "path",
+            "value",
+            "/api",
+            true,
+            false,
+            Some(60),
+        )
+        .unwrap();
+
+        assert_eq!(jar.matches("https://reddit.com/").count(), 0);
+        let cookies: Vec<_> = jar.matches("https://reddit.com/api/test").collect();
+        assert_eq!(cookies.len(), 1);
+        assert_eq!(cookies[0].name(), "path");
+    }
 }

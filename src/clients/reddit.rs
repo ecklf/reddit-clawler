@@ -5,20 +5,18 @@ use crate::{
     clients::api_types::reddit::{
         submitted_response::RedditSubmittedResponse, user_about::RedditUserAbout,
     },
+    http::RequestBuilderExt,
     utils::state::SharedState,
 };
-use reqwest::header::HeaderMap;
 use thiserror::Error;
 use tokio::sync::Mutex;
+use wreq::header::HeaderMap;
 const MAX_SUBMISSIONS_PER_REQUEST: u32 = 100;
-pub const REDDIT_USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 #[derive(Error, Debug)]
 pub enum RedditProviderError {
-    #[error("ReqwestMiddleware error: {0}")]
-    ReqwestMiddleware(#[from] reqwest_middleware::Error),
-    #[error("Reqwest error: {0}")]
-    Reqwest(#[from] reqwest::Error),
+    #[error("HTTP error: {0}")]
+    Http(#[from] wreq::Error),
     #[error("JSON deserialization error: {0}")]
     SerdeJson(#[from] serde_json::Error),
     #[error("Reddit returned a Not Found status")]
@@ -33,7 +31,7 @@ pub enum RedditProviderError {
     AuthenticationRequired,
 }
 
-fn is_reddit_login_url(url: &reqwest::Url) -> bool {
+fn is_reddit_login_url(url: &wreq::Uri) -> bool {
     url.path() == "/login/"
 }
 
@@ -43,18 +41,15 @@ pub struct RedditClient {
 
 impl Default for RedditClient {
     fn default() -> Self {
-        let mut map: HeaderMap = reqwest::header::HeaderMap::new();
+        let mut map = HeaderMap::new();
+        // Browser identity comes from the shared transport's emulation profile.
         map.insert(
-            reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static(REDDIT_USER_AGENT),
+            wreq::header::CACHE_CONTROL,
+            wreq::header::HeaderValue::from_static("no-cache"),
         );
         map.insert(
-            reqwest::header::CACHE_CONTROL,
-            reqwest::header::HeaderValue::from_static("no-cache"),
-        );
-        map.insert(
-            reqwest::header::PRAGMA,
-            reqwest::header::HeaderValue::from_static("no-cache"),
+            wreq::header::PRAGMA,
+            wreq::header::HeaderValue::from_static("no-cache"),
         );
 
         Self { headers: map }
@@ -64,14 +59,14 @@ impl Default for RedditClient {
 impl RedditClient {
     async fn seed_anonymous_session(
         &self,
-        client: &reqwest_middleware::ClientWithMiddleware,
+        client: &wreq::Client,
     ) -> Result<(), RedditProviderError> {
         client
             .head("https://old.reddit.com/")
             .headers(self.headers.to_owned())
-            .send()
+            .send_with_retry()
             .await
-            .map_err(RedditProviderError::ReqwestMiddleware)?;
+            .map_err(RedditProviderError::Http)?;
         Ok(())
     }
 
@@ -99,7 +94,7 @@ impl RedditClient {
 
     pub async fn gen_user_about_url(
         &self,
-        client: &reqwest_middleware::ClientWithMiddleware,
+        client: &wreq::Client,
         user: &str,
     ) -> Result<RedditUserAbout, RedditProviderError> {
         let res = client
@@ -108,34 +103,35 @@ impl RedditClient {
                 user
             ))
             .headers(self.headers.to_owned())
-            .send()
+            .send_with_retry()
             .await
-            .map_err(RedditProviderError::ReqwestMiddleware)?;
+            .map_err(RedditProviderError::Http)?;
 
-        if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        if res.status() == wreq::StatusCode::TOO_MANY_REQUESTS {
             return Err(RedditProviderError::TooManyRequests);
         }
 
-        if res.status() == reqwest::StatusCode::NOT_FOUND {
+        if res.status() == wreq::StatusCode::NOT_FOUND {
             return Err(RedditProviderError::NotFound);
         }
 
-        if is_reddit_login_url(res.url()) {
+        if is_reddit_login_url(res.uri()) {
             return Err(RedditProviderError::AuthenticationRequired);
         }
 
-        if res.status() == reqwest::StatusCode::FORBIDDEN {
+        if res.status() == wreq::StatusCode::FORBIDDEN {
             return Err(RedditProviderError::Forbidden);
         }
 
-        res.json::<RedditUserAbout>()
+        res.error_for_status()?
+            .json::<RedditUserAbout>()
             .await
-            .map_err(RedditProviderError::Reqwest)
+            .map_err(RedditProviderError::Http)
     }
 
     pub async fn get_user_submissions(
         &self,
-        client: &reqwest_middleware::ClientWithMiddleware,
+        client: &wreq::Client,
         shared_state: &Arc<Mutex<SharedState>>,
         cmd: &CliRedditCommand,
         options: &CliSharedOptions,
@@ -164,23 +160,23 @@ impl RedditClient {
             let res = client
                 .get(&url)
                 .headers(self.headers.to_owned())
-                .send()
+                .send_with_retry()
                 .await
-                .map_err(RedditProviderError::ReqwestMiddleware)?;
+                .map_err(RedditProviderError::Http)?;
 
-            if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            if res.status() == wreq::StatusCode::TOO_MANY_REQUESTS {
                 return Err(RedditProviderError::TooManyRequests);
             }
 
-            if res.status() == reqwest::StatusCode::NOT_FOUND {
+            if res.status() == wreq::StatusCode::NOT_FOUND {
                 return Err(RedditProviderError::NotFound);
             }
 
-            if is_reddit_login_url(res.url()) {
+            if is_reddit_login_url(res.uri()) {
                 return Err(RedditProviderError::AuthenticationRequired);
             }
 
-            if res.status() == reqwest::StatusCode::FORBIDDEN {
+            if res.status() == wreq::StatusCode::FORBIDDEN {
                 let about = self
                     .gen_user_about_url(client, user)
                     .await
@@ -192,8 +188,11 @@ impl RedditClient {
                 }
             }
 
-            let res: RedditSubmittedResponse =
-                res.json().await.map_err(RedditProviderError::Reqwest)?;
+            let res: RedditSubmittedResponse = res
+                .error_for_status()?
+                .json()
+                .await
+                .map_err(RedditProviderError::Http)?;
 
             // Keep cached posts in the response so the caller can still update
             // metadata such as last_post_tz. The download phase filters already
@@ -268,7 +267,7 @@ impl RedditClient {
 
     pub async fn get_subreddit_submissions(
         &self,
-        client: &reqwest_middleware::ClientWithMiddleware,
+        client: &wreq::Client,
         shared_state: &Arc<Mutex<SharedState>>,
         cmd: &CliRedditCommand,
         options: &CliSharedOptions,
@@ -299,28 +298,31 @@ impl RedditClient {
             let res = client
                 .get(&url)
                 .headers(self.headers.to_owned())
-                .send()
+                .send_with_retry()
                 .await
-                .map_err(RedditProviderError::ReqwestMiddleware)?;
+                .map_err(RedditProviderError::Http)?;
 
-            if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            if res.status() == wreq::StatusCode::TOO_MANY_REQUESTS {
                 return Err(RedditProviderError::TooManyRequests);
             }
 
-            if res.status() == reqwest::StatusCode::NOT_FOUND {
+            if res.status() == wreq::StatusCode::NOT_FOUND {
                 return Err(RedditProviderError::NotFound);
             }
 
-            if is_reddit_login_url(res.url()) {
+            if is_reddit_login_url(res.uri()) {
                 return Err(RedditProviderError::AuthenticationRequired);
             }
 
-            if res.status() == reqwest::StatusCode::FORBIDDEN {
+            if res.status() == wreq::StatusCode::FORBIDDEN {
                 return Err(RedditProviderError::Forbidden);
             }
 
-            let mut res: RedditSubmittedResponse =
-                res.json().await.map_err(RedditProviderError::Reqwest)?;
+            let mut res: RedditSubmittedResponse = res
+                .error_for_status()?
+                .json()
+                .await
+                .map_err(RedditProviderError::Http)?;
 
             // Skip filtering in update mode to get all posts for cache refresh
             if !options.update {
@@ -379,7 +381,7 @@ impl RedditClient {
         category: &RedditCategoryFilter,
         timeframe: &RedditTimeframeFilter,
     ) -> String {
-        let mut url = reqwest::Url::parse("https://www.reddit.com/search.json").unwrap();
+        let mut url = url::Url::parse("https://www.reddit.com/search.json").unwrap();
         let mut query = url.query_pairs_mut();
         query
             .append_pair("q", term)
@@ -398,7 +400,7 @@ impl RedditClient {
 
     pub async fn get_search_submissions(
         &self,
-        client: &reqwest_middleware::ClientWithMiddleware,
+        client: &wreq::Client,
         shared_state: &Arc<Mutex<SharedState>>,
         cmd: &CliRedditCommand,
         options: &CliSharedOptions,
@@ -423,7 +425,7 @@ impl RedditClient {
 
     async fn get_search_submissions_for_term(
         &self,
-        client: &reqwest_middleware::ClientWithMiddleware,
+        client: &wreq::Client,
         shared_state: &Arc<Mutex<SharedState>>,
         term: &str,
         category: &RedditCategoryFilter,
@@ -446,28 +448,31 @@ impl RedditClient {
             let res = client
                 .get(&url)
                 .headers(self.headers.to_owned())
-                .send()
+                .send_with_retry()
                 .await
-                .map_err(RedditProviderError::ReqwestMiddleware)?;
+                .map_err(RedditProviderError::Http)?;
 
-            if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            if res.status() == wreq::StatusCode::TOO_MANY_REQUESTS {
                 return Err(RedditProviderError::TooManyRequests);
             }
 
-            if res.status() == reqwest::StatusCode::NOT_FOUND {
+            if res.status() == wreq::StatusCode::NOT_FOUND {
                 return Err(RedditProviderError::NotFound);
             }
 
-            if is_reddit_login_url(res.url()) {
+            if is_reddit_login_url(res.uri()) {
                 return Err(RedditProviderError::AuthenticationRequired);
             }
 
-            if res.status() == reqwest::StatusCode::FORBIDDEN {
+            if res.status() == wreq::StatusCode::FORBIDDEN {
                 return Err(RedditProviderError::Forbidden);
             }
 
-            let mut res: RedditSubmittedResponse =
-                res.json().await.map_err(RedditProviderError::Reqwest)?;
+            let mut res: RedditSubmittedResponse = res
+                .error_for_status()?
+                .json()
+                .await
+                .map_err(RedditProviderError::Http)?;
 
             // Skip filtering in update mode to get all posts for cache refresh
             if !options.update {
@@ -526,10 +531,9 @@ mod tests {
 
     #[test]
     fn detects_reddit_login_url() {
-        let url = reqwest::Url::parse(
-            "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2F",
-        )
-        .unwrap();
+        let url = "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2F"
+            .parse::<wreq::Uri>()
+            .unwrap();
 
         assert!(is_reddit_login_url(&url));
     }

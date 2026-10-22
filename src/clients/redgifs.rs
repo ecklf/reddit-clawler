@@ -1,9 +1,10 @@
+use crate::http::RequestBuilderExt;
 use crate::utils::state::SharedState;
-use reqwest::{header::HeaderMap, Response};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
+use wreq::Response;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RedgifsTemporaryTokenResponse {
@@ -69,55 +70,31 @@ pub enum RedgifsQuality {
 
 #[derive(Error, Debug)]
 pub enum RedgifsClientError {
-    #[error("ReqwestMiddleware error: {0}")]
-    ReqwestMiddleware(#[from] reqwest_middleware::Error),
-    #[error("Reqwest error: {0}")]
-    Reqwest(#[from] reqwest::Error),
+    #[error("HTTP error: {0}")]
+    Http(#[from] wreq::Error),
     #[error("JSON deserialization error: {0}")]
     SerdeJson(#[from] serde_json::Error),
     #[error("ID extraction failed")]
     ExtractionFailed,
 }
 
-// lazy_static! {
-//     static ref HEADERS: HeaderMap = {
-//         let mut map: HeaderMap = reqwest::header::HeaderMap::new();
-//         map.insert(
-//             reqwest::header::USER_AGENT,
-//             reqwest::header::HeaderValue::from_static("Reddit-User-Analysis"),
-//         ).unwrap()
-//
-//         map
-//     };
-// }
-
-fn get_header_map() -> HeaderMap {
-    let mut map: HeaderMap = reqwest::header::HeaderMap::new();
-    map.insert(
-        reqwest::header::USER_AGENT,
-        reqwest::header::HeaderValue::from_static("Reddit-User-Analysis"),
-    );
-
-    map
-}
-
 /// https://github.com/Redgifs/api/wiki/Temporary-tokens
 async fn get_temporary_token(
-    client: &reqwest_middleware::ClientWithMiddleware,
+    client: &wreq::Client,
 ) -> Result<RedgifsTemporaryTokenResponse, RedgifsClientError> {
     client
         .get("https://api.redgifs.com/v2/auth/temporary")
-        .headers(get_header_map())
-        .send()
+        .send_with_retry()
         .await
-        .map_err(RedgifsClientError::ReqwestMiddleware)?
+        .map_err(RedgifsClientError::Http)?
+        .error_for_status()?
         .json::<RedgifsTemporaryTokenResponse>()
         .await
-        .map_err(RedgifsClientError::Reqwest)
+        .map_err(RedgifsClientError::Http)
 }
 
 pub async fn download_redgifs_media(
-    client: &reqwest_middleware::ClientWithMiddleware,
+    client: &wreq::Client,
     shared_state: &Arc<Mutex<SharedState>>,
     url: &str,
     gif_quality: RedgifsQuality,
@@ -154,14 +131,14 @@ pub async fn download_redgifs_media(
 
     let res: RedgifsGifResponse = client
         .get(format!("https://api.redgifs.com/v2/gifs/{}", post_id))
-        .headers(get_header_map())
         .header("Authorization", format!("Bearer {}", token))
-        .send()
+        .send_with_retry()
         .await
-        .map_err(RedgifsClientError::ReqwestMiddleware)?
+        .map_err(RedgifsClientError::Http)?
+        .error_for_status()?
         .json()
         .await
-        .map_err(RedgifsClientError::Reqwest)?;
+        .map_err(RedgifsClientError::Http)?;
 
     let dl_url = match gif_quality {
         RedgifsQuality::SD => res.gif.urls.sd,
@@ -170,8 +147,7 @@ pub async fn download_redgifs_media(
 
     client
         .get(dl_url)
-        .headers(get_header_map())
-        .send()
+        .send_with_retry()
         .await
-        .map_err(RedgifsClientError::ReqwestMiddleware)
+        .map_err(RedgifsClientError::Http)
 }

@@ -21,7 +21,7 @@ use tokio::{
 
 pub async fn handle_search_command(
     cmd: CliRedditCommand,
-    client: &reqwest_middleware::ClientWithMiddleware,
+    client: &wreq::Client,
     shared_state: &Arc<Mutex<SharedState>>,
 ) -> Result<(), Box<dyn Error>> {
     let CliRedditCommand {

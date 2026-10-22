@@ -22,7 +22,7 @@ use tokio::{
 
 pub async fn handle_user_command(
     cmd: CliRedditCommand,
-    client: &reqwest_middleware::ClientWithMiddleware,
+    client: &wreq::Client,
     shared_state: &Arc<Mutex<SharedState>>,
 ) -> Result<(), Box<dyn Error>> {
     let CliRedditCommand {

@@ -1,11 +1,11 @@
 use super::state::SharedState;
 use crate::{
     clients::{download_redgifs_media, RedgifsQuality},
+    http::RequestBuilderExt,
     reddit_parser::{RedditCrawlerPost, RedditMediaProviderType},
 };
 use chrono::{DateTime, Utc};
 use filetime::FileTime;
-use reqwest::Response;
 use std::{
     fs::{self, File},
     io::Write,
@@ -13,6 +13,7 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::Mutex;
+use wreq::Response;
 
 pub fn prepare_output_folder(folder_path: &str) -> Result<(), anyhow::Error> {
     if fs::metadata(folder_path).is_err() {
@@ -26,7 +27,7 @@ pub fn get_output_folder(path: &str, stem: &str) -> String {
 }
 
 enum ProviderHandlerReturned {
-    HttpResponse(Response),
+    HttpResponse(Box<Response>),
     ThirdPartyResponse(String),
     NotFound,
     Unhandled,
@@ -54,7 +55,7 @@ pub enum DownloadPostResult {
 }
 
 pub async fn download_crawler_post(
-    client: &reqwest_middleware::ClientWithMiddleware,
+    client: &wreq::Client,
     shared_state: &Arc<Mutex<SharedState>>,
     folder_path: &str,
     media: &RedditCrawlerPost,
@@ -97,9 +98,9 @@ pub async fn download_crawler_post(
     let response = match provider {
         RedditMediaProviderType::RedditImage
         | RedditMediaProviderType::RedditGalleryImage
-        | RedditMediaProviderType::RedditGifVideo => {
-            ProviderHandlerReturned::HttpResponse(client.get(url).send().await?)
-        }
+        | RedditMediaProviderType::RedditGifVideo => ProviderHandlerReturned::HttpResponse(
+            Box::new(client.get(url).send_with_retry().await?),
+        ),
         RedditMediaProviderType::RedditVideo => {
             let mut child = Command::new("yt-dlp")
                 .arg(url)
@@ -115,9 +116,9 @@ pub async fn download_crawler_post(
             ProviderHandlerReturned::ThirdPartyResponse(file_path.clone())
         }
         RedditMediaProviderType::RedgifsImage | RedditMediaProviderType::RedgifsVideo => {
-            ProviderHandlerReturned::HttpResponse(
+            ProviderHandlerReturned::HttpResponse(Box::new(
                 download_redgifs_media(client, shared_state, url, RedgifsQuality::HD).await?,
-            )
+            ))
         }
         RedditMediaProviderType::YoutubeVideo => {
             let mut child = Command::new("yt-dlp")
@@ -136,7 +137,7 @@ pub async fn download_crawler_post(
             ProviderHandlerReturned::ThirdPartyResponse(file_path.clone())
         }
         RedditMediaProviderType::ImgurImage => {
-            let response = client.get(url).send().await?;
+            let response = client.get(url).send_with_retry().await?;
             let content_type = response.headers().get("content-type");
             match content_type {
                 Some(value) => match value.to_str() {
@@ -145,12 +146,12 @@ pub async fn download_crawler_post(
                         if s == "text/html" {
                             ProviderHandlerReturned::NotFound
                         } else {
-                            ProviderHandlerReturned::HttpResponse(response)
+                            ProviderHandlerReturned::HttpResponse(Box::new(response))
                         }
                     }
-                    Err(_) => ProviderHandlerReturned::HttpResponse(response),
+                    Err(_) => ProviderHandlerReturned::HttpResponse(Box::new(response)),
                 },
-                _ => ProviderHandlerReturned::HttpResponse(response),
+                _ => ProviderHandlerReturned::HttpResponse(Box::new(response)),
             }
         }
         RedditMediaProviderType::None => {
@@ -161,7 +162,7 @@ pub async fn download_crawler_post(
 
     match response {
         ProviderHandlerReturned::HttpResponse(response) => {
-            let bytes = response.bytes().await?;
+            let bytes = response.error_for_status()?.bytes().await?;
 
             let mut out = File::create(&file_path)?;
             out.write_all(&bytes)?;

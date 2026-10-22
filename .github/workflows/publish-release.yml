@@ -25,6 +25,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
+      - name: Install BoringSSL build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake perl pkg-config libclang-dev
       - run: cargo build --release --all
 
       - name: Set short sha

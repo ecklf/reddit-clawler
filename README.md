@@ -82,6 +82,12 @@ jitter. `Retry-After` is honored in both seconds and HTTP-date form; delays over
 two minutes return the response instead of retrying early. Authentication and
 forbidden responses are returned without automatic retries.
 
+Search requests (including the supplemental author search in user crawls) fall
+back to `old.reddit.com` if `www.reddit.com` returns 403. Reddit can block search
+on the main host even when the same cookies work for listings and old Reddit.
+The fallback preserves the query and pagination; it does not bypass login or
+access restrictions if old Reddit also rejects the request.
+
 Connections time out after 15 seconds, stalled reads after 30 seconds, and each
 attempt (including the response body) after five minutes. Browser emulation can
 reduce fingerprint mismatches, but sites may still require valid cookies or

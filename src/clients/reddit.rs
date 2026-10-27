@@ -35,6 +35,18 @@ fn is_reddit_login_url(url: &wreq::Uri) -> bool {
     url.path() == "/login/"
 }
 
+fn search_fallback_url(url: &str) -> Option<String> {
+    let mut url = url::Url::parse(url).ok()?;
+    if url.scheme() != "https"
+        || url.host_str() != Some("www.reddit.com")
+        || url.path() != "/search.json"
+    {
+        return None;
+    }
+    url.set_host(Some("old.reddit.com")).ok()?;
+    Some(url.into())
+}
+
 pub struct RedditClient {
     headers: HeaderMap,
 }
@@ -57,6 +69,32 @@ impl Default for RedditClient {
 }
 
 impl RedditClient {
+    async fn fetch_search(
+        &self,
+        client: &wreq::Client,
+        url: &str,
+    ) -> Result<wreq::Response, RedditProviderError> {
+        let response = client
+            .get(url)
+            .headers(self.headers.clone())
+            .send_with_retry()
+            .await?;
+
+        // Reddit can block www search while allowing the same authenticated
+        // JSON endpoint on old. Do not retry other statuses or unrelated hosts.
+        if response.status() == wreq::StatusCode::FORBIDDEN {
+            if let Some(fallback) = search_fallback_url(url) {
+                drop(response);
+                return Ok(client
+                    .get(fallback)
+                    .headers(self.headers.clone())
+                    .send_with_retry()
+                    .await?);
+            }
+        }
+        Ok(response)
+    }
+
     async fn seed_anonymous_session(
         &self,
         client: &wreq::Client,
@@ -445,12 +483,7 @@ impl RedditClient {
                 None => self.gen_search_url(term, None, category, timeframe),
             };
 
-            let res = client
-                .get(&url)
-                .headers(self.headers.to_owned())
-                .send_with_retry()
-                .await
-                .map_err(RedditProviderError::Http)?;
+            let res = self.fetch_search(client, &url).await?;
 
             if res.status() == wreq::StatusCode::TOO_MANY_REQUESTS {
                 return Err(RedditProviderError::TooManyRequests);
@@ -528,6 +561,27 @@ impl RedditClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn search_fallback_preserves_query_and_pagination() {
+        let url = "https://www.reddit.com/search.json?q=author%3Aspez&include_over_18=on&limit=100&sort=new&t=all&after=t3_example&raw_json=1";
+        assert_eq!(
+            search_fallback_url(url).unwrap(),
+            url.replacen("www.reddit.com", "old.reddit.com", 1)
+        );
+    }
+
+    #[test]
+    fn search_fallback_is_restricted_to_www_search() {
+        for url in [
+            "https://old.reddit.com/search.json?q=test",
+            "https://example.com/search.json?q=test",
+            "https://www.reddit.com/user/spez/submitted.json",
+            "http://www.reddit.com/search.json?q=test",
+        ] {
+            assert!(search_fallback_url(url).is_none());
+        }
+    }
 
     #[test]
     fn detects_reddit_login_url() {

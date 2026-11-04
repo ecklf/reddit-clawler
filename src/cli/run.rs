@@ -141,7 +141,7 @@ pub fn run() -> CliCommand {
     ];
 
     let cmd = Command::new("reddit-clawler")
-        .version("0.1.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .about("Crawler for Reddit posts")
         .subcommand_required(true)
         .subcommand(

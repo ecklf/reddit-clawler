@@ -328,6 +328,8 @@ impl Default for DownloadStats {
 }
 
 pub struct SharedState {
+    /// The in-memory browser session jar, shared with the HTTP transport.
+    pub reddit_cookie_jar: Option<std::sync::Arc<wreq::cookie::Jar>>,
     pub redgifs_token: Option<String>,
     pub file_cache_path: Option<String>,
     pub file_cache: FileCacheLatest,
@@ -336,6 +338,7 @@ pub struct SharedState {
 impl Default for SharedState {
     fn default() -> Self {
         Self {
+            reddit_cookie_jar: None,
             redgifs_token: None,
             file_cache_path: None,
             file_cache: FileCacheLatest {

@@ -2,11 +2,21 @@ use reddit_clawler::{
     cli, http,
     utils::{self, state::SharedState},
 };
-use std::{error::Error, sync::Arc};
+use std::{error::Error, process::ExitCode, sync::Arc};
 use tokio::sync::Mutex;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> ExitCode {
+    match run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run() -> Result<(), Box<dyn Error>> {
     // Checks for dependencies that will be used in future versions
     utils::check_deps()?;
     // Checks for file_scheme that will be used in future version
@@ -24,10 +34,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         None => Arc::new(wreq::cookie::Jar::default()),
     };
 
-    let client = http::build_client(cookie_jar)?;
+    let client = http::build_client(cookie_jar.clone())?;
 
-    // Shared state between tokio tasks e.g. caching an authorization token
-    let shared_state: Arc<Mutex<SharedState>> = Arc::new(Mutex::new(SharedState::default()));
+    // Share the jar so GraphQL token renewal and media requests see the same
+    // session without re-reading or writing the exported credentials file.
+    let shared_state: Arc<Mutex<SharedState>> = Arc::new(Mutex::new(SharedState {
+        reddit_cookie_jar: Some(cookie_jar),
+        ..SharedState::default()
+    }));
 
     match cli_request {
         cli::CliCommand::User(cmd) => {

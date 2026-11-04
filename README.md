@@ -26,8 +26,11 @@ Crawls posts from `/u/spez` with spawning `50` tasks to `./downloads/user/spez`:
 ./reddit_clawler user spez  --category new --tasks 50 -o ./downloads
 ```
 
-If Reddit returns a forbidden response, provide an exported browser cookie file.
-The file is first parsed as browser-export JSON, then as Netscape text if JSON parsing fails:
+For authenticated GraphQL crawling, provide cookies exported from a logged-in
+Reddit browser session (including `reddit_session`). Supplying `--cookies` selects
+GraphQL for user, subreddit, and search commands instead of the blocked `.json`
+listings. The file is first parsed as browser-export JSON, then as Netscape text
+if JSON parsing fails:
 
 ```sh
 ./reddit_clawler user spez --category new --cookies ./cookies.json
@@ -66,9 +69,11 @@ This file keeps track of the posts you have already downloaded and skips downloa
 
 ### Rate limiting
 
-Querying posts is paginated (100 items per requests) and can lead to rate limiting.
-To avoid this, you can provide a `--limit` flag to limit the number of requests for fetching a resource.
-This can be useful for subsequent crawling.
+Querying posts is paginated and can lead to rate limiting. `--limit` bounds listing
+pages per feed, not total HTTP requests. GraphQL uses Reddit's server-selected
+feed page sizes (search requests 25 posts); each feed page may require another
+request to fetch full post details. User crawls also perform a supplemental
+author search with its own page limit. Legacy JSON pages request up to 100 posts.
 
 ### HTTP transport
 
@@ -79,14 +84,57 @@ connections and session cookies and supports gzip, Brotli, and deflate responses
 GET and HEAD requests retry transient connection failures, timeouts, and HTTP
 408/429/500/502/503/504 responses up to three times with exponential backoff and
 jitter. `Retry-After` is honored in both seconds and HTTP-date form; delays over
-two minutes return the response instead of retrying early. Authentication and
-forbidden responses are returned without automatic retries.
+two minutes return the response instead of retrying early.
 
-Search requests (including the supplemental author search in user crawls) fall
-back to `old.reddit.com` if `www.reddit.com` returns 403. Reddit can block search
-on the main host even when the same cookies work for listings and old Reddit.
-The fallback preserves the query and pagination; it does not bypass login or
-access restrictions if old Reddit also rejects the request.
+With `--cookies`, the crawler uses Reddit's persisted GraphQL queries, following
+[Hydra's protocol](https://github.com/dmilin1/hydra/blob/master/api/gql/GqlApi.ts).
+It reuses `token_v2` when it is not known to be expired, or renews it using the
+exported `reddit_session`. Numeric expiry claims support fractional seconds; a
+token with an unreadable expiry is tried against Reddit before renewal rather
+than rejected locally. Known account mismatches still trigger renewal:
+a HEAD request primes the web cookies, then an empty POST to
+`/svc/shreddit/graphql` obtains `token_v2` (Reddit may return 400 while setting it).
+Post IDs are discovered through SDUI feeds and hydrated through `PostsByIds`;
+search uses `SearchPosts`. Images, ordered galleries, video, and external media
+are converted to the existing parser/download pipeline with legacy cache IDs.
+
+Only read operations are sent. A rejected imported token is refreshed and retried
+at most once; a newly issued rejected token fails rather than looping. GraphQL
+POSTs do not use the transport's automatic transient retries. Tokens remain in
+memory and are not printed or written back to the cookie file. GraphQL errors
+fail the crawl instead of caching incomplete results as deleted resources.
+Persisted query hashes can change, and valid cookies do not guarantee Reddit
+will allow token renewal or API access. GraphQL search supports `new`, `hot`,
+and `top`; user crawls omit supplemental search for `rising`/`controversial`.
+Subreddit access gates are not automatically opted into.
+
+If token renewal fails, the error reports only safe metadata: the imported token's
+validity category, HEAD/proxy HTTP statuses, the proxy response type, whether
+`token_v2` appeared in a Set-Cookie header, and whether a usable token reached the
+jar. Cookie values, JWT claims, raw headers, URLs, and response bodies are never
+included. This distinguishes a server not issuing a token from a token-format,
+expiry/clock, or cookie-scope problem. A `reddit_session` cookie being present does
+not by itself prove the session is still accepted by Reddit. You can also export
+a fresh `token_v2` from your logged-in browser alongside `reddit_session` to avoid
+renewal until that token expires. Do not share the cookie export itself.
+
+Without `--cookies`, legacy Reddit JSON requests (user listings, user details, subreddit listings, and search)
+explicitly accept JSON and fall back once to the same endpoint on `old.reddit.com`
+if `www.reddit.com` returns 403, redirects to a JavaScript challenge
+(`js_challenge=1`), or serves HTML with a successful status. The fallback preserves
+the original query and pagination and reuses the cookie jar without widening
+host-only cookies. Login redirects, not-found responses, and rate limits do not
+trigger this fallback.
+
+If both hosts reject the request, the crawler reports authentication, challenge,
+or forbidden errors rather than treating an HTML page as JSON. Login redirects
+(including a login page returning 404) and HTML 404s are not treated as deleted
+users. If an earlier crawl incorrectly cached a user as deleted, retry with
+`--force` to fetch it again.
+
+Complete any challenge in your browser on the same network and export fresh
+Reddit cookies; the crawler does not execute browser challenges. Challenge URLs
+can contain session-related tokens and should not be shared publicly.
 
 Connections time out after 15 seconds, stalled reads after 30 seconds, and each
 attempt (including the response body) after five minutes. Browser emulation can

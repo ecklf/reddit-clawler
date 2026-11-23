@@ -378,7 +378,8 @@ fn sdui_page(connection: &Value, profile: bool) -> Result<(Vec<String>, Option<S
         .ok_or(RedditProviderError::GraphQl("listing has no edges array"))?;
     let ids = sdui_post_ids(edges)?;
     let next = if profile || connection.get("pageInfo").is_some() {
-        // Profile feeds expose an opaque pageInfo cursor.
+        // Some persisted operations select only endCursor, not hasNextPage.
+        // Prefer the server's cursor whenever pageInfo is available.
         parse_connection(connection)?.1
     } else {
         // Subreddit/Popular/All SDUI operations do not require pageInfo:
@@ -396,12 +397,27 @@ fn parse_connection(connection: &Value) -> Result<(&[Value], Option<String>)> {
     let info = connection
         .get("pageInfo")
         .ok_or(RedditProviderError::GraphQl("listing has no pageInfo"))?;
-    let has_next =
-        info.get("hasNextPage")
-            .and_then(Value::as_bool)
-            .ok_or(RedditProviderError::GraphQl(
+    let has_next = match info.get("hasNextPage") {
+        Some(Value::Bool(has_next)) => *has_next,
+        None => {
+            // Cursor-only connections terminate with null or an empty cursor.
+            // Do not mistake missing/malformed pagination for an empty result.
+            return match info.get("endCursor") {
+                Some(Value::String(cursor)) if !cursor.is_empty() => {
+                    Ok((edges, Some(cursor.clone())))
+                }
+                Some(Value::Null | Value::String(_)) => Ok((edges, None)),
+                _ => Err(RedditProviderError::GraphQl(
+                    "pageInfo has no usable endCursor",
+                )),
+            };
+        }
+        _ => {
+            return Err(RedditProviderError::GraphQl(
                 "pageInfo has no boolean hasNextPage",
-            ))?;
+            ));
+        }
+    };
     // On a terminal page Reddit can omit endCursor or return ""/null. It
     // isn't needed to retain this page's posts and must not fail the crawl.
     if !has_next {
@@ -524,6 +540,26 @@ mod tests {
                 .unwrap()
                 .1
                 .is_none());
+        }
+    }
+
+    #[test]
+    fn cursor_only_connections_preserve_posts_and_opaque_cursors() {
+        let edges = json!([{"node": {"groupId": "t3_kept"}}]);
+        for cursor in [json!(" opaque+/==:cursor "), json!(""), Value::Null] {
+            let page = json!({"edges": edges, "pageInfo": {"endCursor": cursor}});
+            let expected = cursor.as_str().filter(|s| !s.is_empty()).map(str::to_owned);
+            let (actual_edges, next) = parse_connection(&page).unwrap();
+            assert_eq!(actual_edges, edges.as_array().unwrap());
+            assert_eq!(next, expected);
+            for profile in [false, true] {
+                let (ids, next) = sdui_page(&page, profile).unwrap();
+                assert_eq!(ids, ["t3_kept"]);
+                assert_eq!(next, expected);
+            }
+        }
+        for info in [json!({}), Value::Null, json!({"endCursor": 7})] {
+            assert!(parse_connection(&json!({"edges": [], "pageInfo": info})).is_err());
         }
     }
 

@@ -957,6 +957,46 @@ async fn subreddit_feed_without_page_info_pages_by_encoded_fullname() {
 }
 
 #[tokio::test]
+async fn subreddit_and_search_follow_cursor_only_connections() {
+    let cursor = " opaque+/==:cursor ";
+    let server = Server::start(vec![
+        data(json!({"subredditFeed": {"elements": {"edges": [{"node": {"groupId": "t3_one"}}], "pageInfo": {"endCursor": cursor}}}})),
+        data(json!({"postsInfoByIds": [image_post("t3_one")]})),
+        data(json!({"subredditFeed": {"elements": {"edges": [], "pageInfo": {"endCursor": null}}}})),
+        data(json!({"search": {"general": {"posts": {"edges": [{"node": image_post("t3_two")}], "pageInfo": {"endCursor": cursor}}}}})),
+        data(json!({"search": {"general": {"posts": {"edges": [{"node": image_post("t3_three")}], "pageInfo": {"endCursor": ""}}}}})),
+    ]).await;
+    let jar = Arc::new(Jar::default());
+    let client = http_client(jar.clone());
+    let gql = graphql(
+        &client,
+        jar,
+        &server.base,
+        Some(&session("alice", "imported")),
+        Some(&token("alice")),
+    );
+    let mut cmd = command(None);
+    cmd.resource = "redpandas".into();
+    let pages = bounded(gql.subreddit_submissions(&cmd)).await.unwrap();
+    assert_eq!(pages[0].data.children[0].data.id, "one");
+    assert!(pages[1].data.after.is_none());
+    let pages = bounded(gql.search_submissions("team", &cmd.category, &cmd.timeframe, None))
+        .await
+        .unwrap();
+    assert_eq!(pages[0].data.children[0].data.id, "two");
+    assert_eq!(pages[1].data.children[0].data.id, "three");
+    assert!(pages[1].data.after.is_none());
+    let requests = server.finish(&[("POST", "/gql"); 5]).await;
+    assert_eq!(
+        requests[0].json()["variables"]["subredditName"],
+        "redpandas"
+    );
+    assert_eq!(requests[2].json()["variables"]["after"], cursor);
+    assert_eq!(requests[3].json()["variables"]["query"], "team");
+    assert_eq!(requests[4].json()["variables"]["afterCursor"], cursor);
+}
+
+#[tokio::test]
 async fn user_crawl_keeps_posts_when_terminal_cursors_are_missing_or_empty() {
     let server = Server::start(vec![
         data(json!({"redditorInfoByName": {"__typename": "Redditor"}})),

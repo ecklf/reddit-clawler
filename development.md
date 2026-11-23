@@ -43,6 +43,11 @@ will allow token renewal or API access. GraphQL search supports `new`, `hot`,
 and `top`; user crawls omit supplemental search for `rising`/`controversial`.
 Subreddit access gates are not automatically opted into.
 
+Listing pagination accepts both `hasNextPage`/`endCursor` and cursor-only
+`pageInfo` responses. Server cursors are passed through unchanged; cursor-only
+pages terminate on a null or empty `endCursor`. Subreddit feeds without
+`pageInfo` fall back to the base64-encoded last post fullname.
+
 If token renewal fails, the error reports only safe metadata: the imported token's
 validity category, HEAD/proxy HTTP statuses, the proxy response type, whether
 `token_v2` appeared in a Set-Cookie header, and whether a usable token reached the
